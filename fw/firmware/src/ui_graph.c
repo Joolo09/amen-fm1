@@ -1142,6 +1142,7 @@ static uint32_t strip_kind(void)
 }
 /* the page's title and its number in its family ("ENV DEST 2/2", EDIT: the engine's "OSC 1/2"); the piano roll: its
  * scale ("C MIN"); ti holds 20 (the footer, the strip) */
+#include "ui_amen.c"   /* AMEN: the break map, the reese, CHOP */
 static void page_title(char *ti)
 {
     const page_t *pg = cur_page();
@@ -1161,6 +1162,10 @@ static void page_title(char *ti)
         fmt_int(ti + str_len(ti), (int32_t)k);
         str_cpy(ti + str_len(ti), "/", 4);
         fmt_int(ti + str_len(ti), (int32_t)n);
+    }
+    if (pg->graph == GR_ROLL && !detail_on() && (amen_jungle(t) || amen_reese(t))) {   /* AMEN: CHOP, BASSLINE */
+        str_cpy(ti, amen_jungle(t) ? "CHOP" : "BASSLINE", 12);
+        return;
     }
     if (pg->graph == GR_ROLL && !drum_track(t) && !detail_on()) {   /* the piano roll: its tinted rows' scale ("C MIN") */
         str_cpy(ti, N_NOTE[(uint32_t)t->p[P_ROOT] % 12u], 4);
@@ -1239,6 +1244,7 @@ static uint32_t graph_signature(void)
                                                      * levels, FB; the operator pages: the operator, the stage) */
         h ^= (fm6_pgen[(t - trk) % NTRK] + 1u) * 2246822519u + (fop_op + 1u) * 40503u + (fop_stg + 1u) * 7919u;
     if (pg->scope == SC_ENGINE && ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE) h ^= sample_wave.pos * 13u + sample_wave.key;
+    if (pg->scope == SC_ENGINE && amen_jungle(t)) h ^= (uint32_t)(amen_slice_now(t) + 2) * 2654435761u;   /* AMEN */
     if (pg->graph == GR_ROLL) {
         uint32_t ph = song.playing ? t->seq_idx : 0xFFFFu;
         if (ph / 16u != ui.bank)
@@ -1251,7 +1257,7 @@ static uint32_t graph_signature(void)
         }
         if (detail_on())                             /* DETAIL: QUANTIZE (NUDGE's DIM), the lane named in the accent */
             h = (h ^ (0xD1u + (uint32_t)t->p[P_SQNT] * 31u + (ui.hot_t ? ui.hot_col + 1u : 0u) * 977u)) * 2654435761u;
-        else if (!drum_track(t)) {                   /* the roll: its view and the keys held */
+        else if (!drum_track(t) && !amen_jungle(t) && !amen_reese(t)) {   /* the roll: its view and the keys held */
             pr_follow(t);
             h = (h ^ (proll.lo + 1u)) * 16777619u;
             h = (h ^ pr_held()) * 16777619u;
@@ -2264,7 +2270,9 @@ static void draw_graph(void)
         graph_ht = 100;
     } else if (ui.home) {
         cv_oy = 0;
-        graph_scope(c);
+        if (amen_jungle(t)) graph_break(t, c);       /* AMEN */
+        else if (amen_reese(t)) graph_reese(t, c);
+        else graph_scope(c);
     } else {
         switch (pg->graph) {
         case GR_ADSR:
@@ -2279,6 +2287,10 @@ static void draw_graph(void)
                 graph_detail(t, c);
             else if (drum_track(t))
                 graph_grid(t, c);
+            else if (amen_jungle(t))                  /* AMEN: CHOP */
+                graph_chop(t, c);
+            else if (amen_reese(t))                   /* AMEN: BASSLINE */
+                graph_bass(t, c);
             else
                 graph_roll(t, c);
             break;
@@ -2344,7 +2356,9 @@ static void draw_graph(void)
             if (fop_ok()) graph_fm6env(t, c);
             break;
         default:
-            if (pg->scope == SC_ENGINE && ENGINES[t->eng_req % NENGINES] == &ENG_WHEEL) graph_wheel(t, c);
+            if (pg->scope == SC_ENGINE && amen_jungle(t)) { cv_oy = 0; graph_break(t, c); }   /* AMEN */
+            else if (pg->scope == SC_ENGINE && amen_reese(t)) { cv_oy = 0; graph_reese(t, c); }
+            else if (pg->scope == SC_ENGINE && ENGINES[t->eng_req % NENGINES] == &ENG_WHEEL) graph_wheel(t, c);
             else if (pg->scope == SC_ENGINE && ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE && sample_wave.ready) graph_sample(c);
             else if (pg->scope == SC_ENGINE && t->eng_req % NENGINES == ENGI_FM6) graph_fm6(t, c, 6u);   /* EDIT 1 and 2 */
 #if FELUCCA_FM4

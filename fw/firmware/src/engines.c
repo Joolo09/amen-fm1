@@ -164,6 +164,9 @@ static const char *snd_missing(const track_t *t, uint32_t *code)
  * engine indices, never DIGITAL's reserved 1 (with FELUCCA_FM4 it follows FM6). The indices stay as they are (the
  * stores and the protocol hold them); only this table orders them */
 static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
+#if AMEN_SETUP && FELUCCA_SLICE && !FELUCCA_FM4 && !FELUCCA_ADPCM
+    2, 6, 10, 13, 0, 12,         /* AMEN: JUNGLE REESE DRUM SLICE ANALOG FM6 (core.h NENG_SHOWN) */
+#else
     2,                           /* AMEN: JUNGLE */
     6,                           /* AMEN: REESE */
     10,                          /* DRUM */
@@ -177,6 +180,7 @@ static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
 #endif
     3, 4, 5, 7, 8, 9,            /* LOFI SAMPLE VOICE WHEEL GRAIN PHYS */
     11,                          /* NOISE */
+#endif
 #if FELUCCA_ADPCM
     14,                          /* ADPCM (1.8): last, so the EDIT layer's white keys keep the 13 above (ui_layer.c LY_ENG_KEYS) */
 #endif

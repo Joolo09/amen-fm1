@@ -803,7 +803,9 @@ enum { S_HOME, S_HOME_IDLE, S_MESSAGE, S_MESSAGE_KEY, S_MESSAGE_NOFILE, S_PRESET
        S_DETAIL, S_DETAIL_PLAYING, S_DETAIL_REST, S_DETAIL_DRUM, S_ROLL_MARKS, S_DRUM_MARKS, S_HELP_DETAIL,
        S_DETAIL_COND, S_DETAIL_FILL, S_AUTO_COND, S_GLO_FILL, S_SEQ_EUCLID, S_SEQ_EUCLID_DRUM, S_SEQ_EUCLID_64,
        S_MENU_SELECT, S_PROJECT_ERASE, S_CONFIRM_ERASE_PROJ, S_TOOLS_CLEAN, S_CONFIRM_CLEAN,
-       S_MENU_MIDI_TRACK, S_MENU_MIDI_TCH_UNUSED, S_MENU_MIDI_AUTO, S_HOME_TRACKS_MIDI, S_MIXER_MIDI, S_EDIT_PHASE_FOLD, S_COUNT };
+       S_MENU_MIDI_TRACK, S_MENU_MIDI_TCH_UNUSED, S_MENU_MIDI_AUTO, S_HOME_TRACKS_MIDI, S_MIXER_MIDI, S_EDIT_PHASE_FOLD,
+       S_AMEN_HOME, S_AMEN_REESE, S_AMEN_CHOP, S_AMEN_BASS, S_AMEN_EDIT, S_AMEN_TOOLS, S_AMEN_JUNGLE, S_AMEN_BRKCORE,
+       S_AMEN_ROLLER, S_COUNT };   /* AMEN */
 static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "message_key", "message_nofile", "presets", "presets_nofav", "user",
     "phrases", "project", "tools", "song_empty", "song", "step", "auto_steps", "auto_add_chance", "automation", "drum",
     "drum_hand", "drum_cym", "mixer", "mixer_from_home", "mixer_pan", "env", "env_dest", "lfo", "mod", "fx", "slicer", "dly", "scl", "chord", "chord_wide", "chord_off", "chord_kit", "arp",
@@ -834,7 +836,9 @@ static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "mes
     "detail_cond", "detail_fill", "auto_cond", "layer_glo_fill", "layer_seq_euclid", "layer_seq_euclid_drum",
     "layer_seq_euclid_64",
     "menu_select", "project_erase", "confirm_erase_project", "tools_clean", "confirm_clean",
-    "menu_midi_track", "menu_midi_channels_unused", "menu_midi_auto_select", "home_tracks_midi", "mixer_midi", "edit_phase_fold"};
+    "menu_midi_track", "menu_midi_channels_unused", "menu_midi_auto_select", "home_tracks_midi", "mixer_midi", "edit_phase_fold",
+    "amen_home", "amen_reese", "amen_chop", "amen_bass", "amen_edit", "amen_tools", "amen_jungle", "amen_brkcore",
+    "amen_roller"};
 
 /* the STEP page's piano roll (ui_graph.c graph_roll) on track 1, stopped unless said: an empty pattern; ACID in
  * A minor; POLY chords (Am7 F C G, tied); a line with ties, slides and accents in C major; LEN 32 on its second
@@ -1256,6 +1260,46 @@ static void setup(int s)
     case S_EDIT_GRAIN: eng(8); go_title("EDIT 2"); break;
     case S_EDIT_PHYS: eng(9); go_title("EDIT 1"); break;
     case S_EDIT_PHASE_FOLD: eng(2); TSEL->p[P_E7] = 80; go_title("EDIT 2"); ui.hot_col = 3; ui.hot_t = 30; break;   /* 1.5.5 FOLD (#104) */
+    /* AMEN: the break map with slice 4 sounding, the reese, CHOP with rolls and chances, the bass line, EDIT on JUNGLE */
+    case S_AMEN_HOME: song.sel = 0; trk_note_on(&trk[0], 64, 110); break;
+    case S_AMEN_REESE: song.sel = 1; break;
+    case S_AMEN_CHOP: {
+        static const uint8_t SL[16] = {0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 10, 11, 4, 5, 4, 4};
+        uint32_t k;
+        song.sel = 0;
+        for (k = 0; k < 16u; k++) {
+            uint8_t n = (uint8_t)(60u + SL[k]);
+            step_put(&trk[0].step[k], ST_NOTE, k % 4u == 0u ? SF_ACCENT : 0u, 1, &n);
+        }
+        step_set_ratchet(&trk[0].step[14], 3);
+        step_set_ratchet(&trk[0].step[15], 4);
+        trk[0].step[9].probability = 50;
+        trk[0].step[3].time = ST_REST;
+        trk[0].step[3].n = 0;
+        go_page(GR_ROLL); ui.cursor = 12; break;
+    }
+    case S_AMEN_BASS: {                           /* a reese line: E1 held, a slide up to G1, D1, an accent */
+        static const uint8_t N[16] = {28, 0, 0, 0, 28, 0, 31, 0, 0, 0, 26, 0, 28, 33, 0, 31};
+        static const uint8_t T[16] = {0, 1, 1, 1, 0, 1, 0, 1, 1, 2, 0, 1, 0, 0, 1, 0};   /* 0 note 1 tie 2 rest */
+        uint32_t k;
+        song.sel = 1;
+        for (k = 0; k < 16u; k++) {
+            step_t *st = &trk[1].step[k];
+            uint8_t n = N[k];
+            step_put(st, T[k] == 0 ? ST_NOTE : T[k] == 1 ? ST_TIE : ST_REST, 0, T[k] == 0 ? 1u : 0u, &n);
+        }
+        trk[1].step[4].flags |= SF_SLIDE;
+        trk[1].step[12].flags |= SF_SLIDE | SF_ACCENT;
+        trk[1].step[0].flags |= SF_ACCENT;
+        trk[1].p[P_SLEN] = 16;
+        go_page(GR_ROLL); ui.cursor = 6; break;
+    }
+    case S_AMEN_EDIT: song.sel = 0; trk_note_on(&trk[0], 76, 110); go_title("EDIT 1"); break;
+    case S_AMEN_TOOLS: song.sel = 0; go_page(GR_ROLL); ui.layer = LAYER_SEQ; break;
+    case S_AMEN_JUNGLE: case S_AMEN_BRKCORE: case S_AMEN_ROLLER:
+        song.sel = 0; trk[0].p[P_SLEN] = 16; rng_state = 0x2468ACEu + (uint32_t)s;
+        ui_message(tl_do(&trk[0], s == S_AMEN_JUNGLE ? TL_RANDOM : s == S_AMEN_BRKCORE ? TL_COOK : TL_BEAT, 0));
+        go_page(GR_ROLL); ui.cursor = 0; break;
     case S_ALG1: case S_ALG2: case S_ALG3: case S_ALG4: case S_ALG5: case S_ALG6: case S_ALG7: case S_ALG8:
         eng(1); TSEL->p[P_E0] = (int16_t)(s - S_ALG1);      /* the 8 DIGITAL charts; FB on the odd ones, IDX high .. 0 */
         TSEL->p[P_E6] = (s - S_ALG1) & 1 ? 40 : 0; TSEL->p[P_E4] = (int16_t)((S_ALG8 - s) * 18);
@@ -1673,7 +1717,11 @@ static void draw(int s)
     }
     if (s == S_SPLASH) {                          /* the power-on splash (main.c, before the UI): its lines, the version
                                                    * shown FELUCCA_VERSION (run_tests.sh: src/felucca.c's) */
+#if AMEN_SETUP
+        static const char WANT[] = "AMEN|JUNGLE / DNB / BREAKCORE|" FELUCCA_VERSION;
+#else
         static const char WANT[] = "Felucca|" FELUCCA_VERSION "|H\xFCgelton Instruments|with community";
+#endif
         splash_seen[0] = 0;
         in_splash = 1;
         draw_splash();
@@ -1697,7 +1745,7 @@ static void draw(int s)
                         if (x - q0 < ix) ix = x - q0;
                         if (y - q0 < iy) iy = y - q0;
                     }
-            if (bad || ix != 16 || iy != 16) {
+            if (!AMEN_SETUP && (bad || ix != 16 || iy != 16)) {   /* (AMEN: its own splash, no square) */
                 if (rep) fprintf(rep, "FIND %-26s the splash square not whole (edges %s) or its text not 16 px in (left %d, top %d)\n",
                                  cur_name, bad ? "off" : "ok", (int)ix, (int)iy);
                 nfind++;
@@ -2261,7 +2309,7 @@ int main(int argc, char **argv)
     const char *out = argc > 1 ? argv[1] : "build/ui_new";
     char path[600];
     uint32_t p, s;
-    static const char *const SHOW[] = {"GREY", "MONO", "GREEN", "PAPER", "NIGHT"};   /* (NIGHT: #50, to review) */
+    static const char *const SHOW[] = {"GREY", "MONO", "GREEN", "PAPER", "NIGHT", "AMEN"};   /* (NIGHT: #50, to review; AMEN) */
     snprintf(path, sizeof path, "%s/report.txt", out);
     rep = fopen(path, "w");
     if (!rep) { fprintf(stderr, "cannot write %s\n", path); return 1; }

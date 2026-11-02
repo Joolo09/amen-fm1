@@ -1101,7 +1101,7 @@ static void layer_seq(void)
         if (!tl_cell(TSEL, p))
             continue;
         n[0] = W_NOTE[p];
-        str_cpy(nm, TL_NAME[p], sizeof nm);
+        str_cpy(nm, amen_tool_name(TSEL, p) ? amen_tool_name(TSEL, p) : TL_NAME[p], sizeof nm);   /* AMEN */
         if (p >= TL_LCLR) {                             /* the lane's: "CLR BD" */
             str_cpy(nm + str_len(nm), " ", 2);
             str_cpy(nm + str_len(nm), drum_lane_abbr(TSEL, ui.lane), sizeof nm - str_len(nm));

@@ -66,9 +66,14 @@
 #endif
 #define ENGI_ADPCM 14u
 #define ENGI_DIGITAL 1u          /* reserved without FELUCCA_FM4: never selectable (eng_ok), its sounds load as FM6 */
+#if AMEN_SETUP && FELUCCA_SLICE && !FELUCCA_FM4 && !FELUCCA_ADPCM
+#define NENG_SHOWN 6u            /* AMEN: JUNGLE REESE DRUM SLICE ANALOG FM6 (engines.c ENGINE_ORDER); the others stay built,
+                                  * so a project that has them plays, but they are not offered */
+#else
 #define NENG_SHOWN (NENG_BUILTIN - !FELUCCA_FM4)   /* Felucca's engines one can pick: PRESETS, the EDIT layer, the
                                                     * editor, in the display order of engines.c ENGINE_ORDER (with
                                                     * plugins: eng_nshown, those and the plugins of their own) */
+#endif
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 
 /* ------------------------------------------------------- parameters --- */

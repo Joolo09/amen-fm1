@@ -25,8 +25,10 @@ static uint32_t tl_lane(const step_t *s, uint32_t l) { return (step_lanes(s) >> 
 /* place p's action is there for this track (the lane row and BEAT: DRUM only) */
 static int tl_cell(const track_t *t, uint32_t p)
 {
-    return p < TL_N && (p < TL_BEAT || p == TL_EUCLID || p >= TL_DOUBLE || drum_track(t));
+    return p < TL_N && (p < TL_BEAT || p == TL_EUCLID || p >= TL_DOUBLE || drum_track(t) || (p == TL_BEAT && amen_jungle(t)));
 }
+
+#include "ui_amen_tools.c"                             /* AMEN: JUNGLE, BRKCORE, ROLLER */
 
 /* the undo copy of t as it is now (ui.c load_begin, but the automation is copied and stays): one action */
 static void tl_undo_take(track_t *t)
@@ -557,6 +559,14 @@ static const char *tl_do(track_t *t, uint32_t p, uint32_t l)
     l %= NLANE;
     if ((p == TL_DOUBLE || p == TL_HALF) && !tl_resize_ok(t, p, len))
         return 0;
+    if (amen_jungle(t) && (p == TL_RANDOM || p == TL_COOK || p == TL_BEAT)) {   /* AMEN: the edit makers (ui_amen.c) */
+        tl_undo_take(t);
+        if (p == TL_RANDOM) { amen_make_jungle(t, len); msg = "JUNGLE EDIT"; }
+        else if (p == TL_COOK) { amen_make_brkcore(t, len); msg = "BREAKCORE!"; }
+        else { amen_make_roller(t, len); msg = "DNB ROLLER"; }
+        tl_unlock(t, was, len);
+        return msg;
+    }
     if (p == TL_COOK) {                                 /* (nothing there: nothing to cook, no undo copy) */
         for (i = 0; i < len; i++)
             n += drum ? (uint32_t)__builtin_popcount(step_lanes(&t->step[i])) : (uint32_t)tl_gate(&t->step[i]);

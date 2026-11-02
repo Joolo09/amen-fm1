@@ -924,6 +924,21 @@ static void step_edit(uint32_t slot, int32_t steps)
         follow_hold();                                    /* (1.6, #242: editing the cursor's step: it stays on the screen) */
     if (slot && !(slot == 2u && step_on(st)))             /* (1.8: a knob turned on one step: one undo; LEN: below) */
         step_undo_take(TSEL, 0x2400u | slot << 6 | ui.cursor);
+    if (amen_jungle(TSEL) && (slot == 1u || slot == 3u)) {   /* AMEN CHOP: KNOB 2 the slice (round the 32), KNOB 4 the roll */
+        if (slot == 1u) {
+            uint32_t sl = st->n ? (uint32_t)(st->note[0] + 4u * JNG_STEPS - JNG_BASE) % JNG_STEPS : 0u;
+            if (st->n)
+                sl = (sl + (uint32_t)(steps % (int32_t)JNG_STEPS) + JNG_STEPS) % JNG_STEPS;
+            st->note[0] = (uint8_t)(JNG_BASE + sl);
+            st->n = 1;
+            st->time = ST_NOTE;
+            last_note = st->note[0];
+        } else if (step_on(st)) {
+            step_set_ratchet(st, (uint32_t)clamp((int32_t)step_ratchet(st) + (steps > 0 ? 1 : -1), 1, 4));
+        }
+        motion_undo_done(TSEL);
+        return;
+    }
     switch (slot) {
     case 0:                                               /* STEP: the cursor */
         cursor_move(ui.cursor + steps);

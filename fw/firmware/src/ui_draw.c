@@ -1304,13 +1304,26 @@ static void draw_columns(void)
             str_cpy(sl, "/", 8);
             fmt_int(sl + 1, TSEL->p[P_SLEN]);
             draw_column(0, "STEP", sn, sl, VAL(0u), -1, ICON_AUTO);
-            draw_column(1, "NOTE", val, u, step_on(st) ? VAL(1u) : T_DIM, -1, ICON_AUTO);
+            if (amen_jungle(TSEL) && st->n) {             /* AMEN CHOP: the slice, what hits in it */
+                uint32_t sl = (uint32_t)(st->note[0] + 4u * JNG_STEPS - JNG_BASE) % JNG_STEPS;
+                val[0] = (char)('0' + sl / 10u);
+                val[1] = (char)('0' + sl % 10u);
+                val[2] = 0;
+                draw_column(1, "SLICE", val, amen_hit_name(amen_step_hits(TSEL, st)), step_on(st) ? VAL(1u) : T_DIM, -1,
+                            ICON_AUTO);
+            } else
+            draw_column(1, amen_jungle(TSEL) ? "SLICE" : "NOTE", val, u, step_on(st) ? VAL(1u) : T_DIM, -1, ICON_AUTO);
             if (step_on(st)) {                            /* a note: its LEN (1.5, KNOB 3: the TIEs after it) */
                 fmt_int(sn, (int32_t)note_len(TSEL, ui.cursor));
                 draw_column(2, "LEN", sn, "", VAL(2u), -1, ICON_AUTO);
             } else {
                 draw_column(2, "TIME", TIME_N[st->time % 3u], "", VAL(2u), -1, ICON_AUTO);
             }
+            if (amen_jungle(TSEL)) {                      /* AMEN CHOP: the roll */
+                static const char *const ROLL_N[5] = {"-", "x1", "x2", "x3", "x4"};
+                draw_column(3, "ROLL", step_on(st) ? ROLL_N[step_ratchet(st) % 5u] : "-", "", step_on(st) ? VAL(3u) : T_DIM,
+                            -1, ICON_AUTO);
+            } else
             draw_column(3, "FLAG", FLAG_N[(st->flags & SF_ACCENT ? 1u : 0u) | (st->flags & SF_SLIDE ? 2u : 0u)], "",
                         VAL(3u), -1, ICON_AUTO);
         }
@@ -1361,7 +1374,7 @@ static void draw_columns(void)
 #define SPL_X0 ((240u - SPL_SQ) / 2u)               /* its top-left on the screen (x and y) */
 #define SPL_PAD 16                                  /* the text's inset: left (its ink), top and bottom (the capitals) */
 #define SPL_PITCH 20                                /* line to line */
-static const char *const SPLASH_LINES[] = {"AMEN", FELUCCA_VERSION, "jungle firmware", "on Felucca"};   /* AMEN */
+static const char *const SPLASH_LINES[] = {"Felucca", FELUCCA_VERSION, "H\xFCgelton Instruments", "with community"};   /* (AMEN_SETUP 0) */
 /* a band of two lines, h tall, at y on the screen: the first line's top at ly; the two lines' capitals declared
  * against al0..al1 (mode: AL_V the band centred there, AL_B the last baseline on al1) */
 static void splash_band(uint32_t y, uint32_t h, int32_t ly, const char *const *l, uint32_t mode, int32_t al0,
@@ -1373,6 +1386,40 @@ static void splash_band(uint32_t y, uint32_t h, int32_t ly, const char *const *l
     cv_text_on(SPL_PAD, ly + SPL_PITCH, &AF_M, l[1], T_TEXT, T_RAISE);
     cv_blit(SPL_X0, y);
 }
+#if AMEN_SETUP
+/* AMEN's splash, the whole screen: AMEN large in the theme on an accent bar, the AMEN break's first bar as its
+ * transients (kicks in the theme, snares in the accent, as the BREAK MAP draws them), the styles, the version */
+static void draw_splash(void)
+{
+    static const char *const L[3] = {"AMEN", "JUNGLE / DNB / BREAKCORE", FELUCCA_VERSION};
+    int32_t w, i, k;
+    lcd_fill(0, 0, 240, 240, T_BG);
+    cv_begin(240, 44, T_BG);
+    w = text_w(&AF_L, L[0]);
+    cv_rect((240 - w) / 2 + 4, 30, w, 6, T_ACCENT);   /* a rave flyer's bar under the name */
+    cv_text_on((240 - w) / 2, 0, &AF_L, L[0], T_THEME, T_BG);
+    cv_blit(0, 52);
+    cv_begin(240, 56, T_BG);
+    cv_rect(16, 28, 208, 1, T_LINE);
+    for (i = 0; i < 16; i++) {
+        uint32_t m = JNG_BRK[0][i];
+        int32_t lv = (m & JK) ? 100 : (m & JS) ? 90 : (m & JG) ? 42 : (m & JR) ? 36 : (m & JH) ? 26 : 0, x = 18 + i * 13;
+        uint16_t col = (m & JK) ? T_THEME : (m & JS) ? T_ACCENT : T_MID;
+        for (k = 0; k < 3 && lv; k++) {
+            int32_t hh = 24 * lv / 100 * (k == 0 ? 10 : k == 1 ? 6 : 3) / 10;
+            cv_rect(x + k * 3, 28 - hh, 3, 2 * hh + 1, col);
+        }
+    }
+    cv_blit(0, 104);
+    cv_begin(240, 40, T_BG);
+    w = text_w(&AF_S, L[1]);
+    cv_text_on((240 - w) / 2, 0, &AF_S, L[1], T_TEXT, T_BG);
+    w = text_w(&AF_S, L[2]);
+    cv_text_on((240 - w) / 2, 22, &AF_S, L[2], T_MID, T_BG);
+    cv_blit(0, 172);
+    lcd_sync();
+}
+#else
 static void draw_splash(void)
 {
     int32_t h = SPL_PAD - AF_M_CAP_Y + SPL_PITCH + AF_M.h;     /* a band: its two lines, the descenders in */
@@ -1385,6 +1432,7 @@ static void draw_splash(void)
                 "splash maker's baseline SPL_PAD from the bottom");
     lcd_sync();
 }
+#endif
 
 /* UPDATE MODE countdown (main.c: OCT- + OCT+ held): over everything, the menu and the dialogs too */
 static void draw_uboot(void)

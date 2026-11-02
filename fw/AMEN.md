@@ -27,3 +27,23 @@ BUILDING.md says). GitHub Actions builds it on every push: the package is `amen-
   `firmware/src/ui_graph.c` (the 4-letter tags JNGL, RESE): the names of engines 2 and 6.
 - `firmware/src/ui_menu.c`: the credits start with AMEN.
 - `firmware/src/core.h`: AMEN_SETUP (1: the jungle setup; 0: Felucca's tracks and 120 BPM, for Felucca's host tests).
+
+## The AMEN interface (AMEN_SETUP 1)
+
+- `firmware/src/ui_amen.c` (new, included by `ui_graph.c`): the BREAK MAP (a JUNGLE track's HOME and EDIT pages: the
+  break's 32 slices as transients, the slice sounding lit and named), the REESE picture (the oscillators' beating,
+  the sub), CHOP (a JUNGLE track's sequencer: steps as slices with their hits, rolls, chances) and BASSLINE (a REESE
+  track's sequencer: notes as bars at their pitch, ties, slides as glides, accents, the notes' names).
+- `firmware/src/ui_amen_tools.c` (new, included by `ui_tools.c`): SEQ TOOLS on a JUNGLE track: RANDOM is JUNGLE (the
+  break with classic edits), COOK is BRKCORE (a mangle), BEAT is ROLLER (drum & bass two-step from the break's hits).
+- `firmware/src/ui_graph.c`: the graphs above in place of the scope / piano roll on those tracks; the footer's title
+  CHOP / BASSLINE; the redraw signature follows the slice sounding.
+- `firmware/src/ui_draw.c`, `ui_input.c`: CHOP's knobs: KNOB 2 SLICE (round the 32, its hit named: KIK SNR GHO HAT ..),
+  KNOB 4 ROLL (x1 .. x4); `firmware/src/icons.c`: their icons. AMEN's own splash (the name, the break's first bar,
+  the styles, the version).
+- `firmware/src/core.h`, `engines.c`: six engines offered (JUNGLE REESE DRUM SLICE ANALOG FM6); the others stay built
+  so a project with them still plays.
+- `tools/gen_ui_palettes.py`, `firmware/src/panel.c`: the AMEN palette (near-black, acid yellow-green, hot pink),
+  the default.
+- `tests/ui_render.c`: AMEN's scenes (amen_*: the break map playing, the reese, CHOP, BASSLINE, the edit makers), the
+  AMEN palette's PNGs, the splash's expected lines.
