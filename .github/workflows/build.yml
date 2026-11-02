@@ -39,15 +39,28 @@ jobs:
           sh tools/build_fm1.sh
           ls -la build/fm1/*.fep
 
+      - uses: actions/cache@v4
+        id: sdk
+        with:
+          path: ~/fw-AC79_AIoT_SDK/cpu/wl82/tools
+          key: ac79-sdk-AC79NN_SDK_V1.2.1_2023-12-13
+
       - name: JieLi AC79 SDK (three files go into the firmware package)
         run: |
           set -e
           sudo apt-get install -y -q libraqm0 libfribidi0 >/dev/null
           pip install -q Pillow fonttools
-          git clone -q --depth 1 --filter=blob:none --sparse --branch AC79NN_SDK_V1.2.1_2023-12-13 \
-            https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$HOME/fw-AC79_AIoT_SDK"
-          git -C "$HOME/fw-AC79_AIoT_SDK" sparse-checkout set cpu/wl82/tools
-          ls -la "$HOME/fw-AC79_AIoT_SDK/cpu/wl82/tools/uboot.boot" "$HOME/fw-AC79_AIoT_SDK/cpu/wl82/tools/cfg_tool.bin"
+          t=$HOME/fw-AC79_AIoT_SDK/cpu/wl82/tools
+          if [ ! -f "$t/uboot.boot" ]; then
+            for n in 1 2 3 4 5; do
+              rm -rf "$HOME/fw-AC79_AIoT_SDK"
+              git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60 clone -q --depth 1 --filter=blob:none --sparse \
+                --branch AC79NN_SDK_V1.2.1_2023-12-13 https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git \
+                "$HOME/fw-AC79_AIoT_SDK" && git -C "$HOME/fw-AC79_AIoT_SDK" sparse-checkout set cpu/wl82/tools && break
+              echo "gitee: attempt $n failed"; sleep $((n * 15))
+            done
+          fi
+          ls -la "$t/uboot.boot" "$t/cfg_tool.bin" "$t/cfg/eq_cfg_hw.bin"
 
       - name: AMEN firmware
         env:
