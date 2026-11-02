@@ -55,11 +55,20 @@ jobs:
           AC79_SDK: /home/runner/fw-AC79_AIoT_SDK
         run: sh tools/build_amen.sh 0.1
 
-      - name: Felucca's host tests on the AMEN sources
+      - name: Felucca's host tests, AMEN against Felucca 1.9.0
         continue-on-error: true
         env:
+          JIELI_TOOLCHAIN: /home/runner/.jieli/toolchain
           AC79_SDK: /home/runner/fw-AC79_AIoT_SDK
-        run: cd fw && sh tests/run_tests.sh 2>&1 | tail -150
+        run: sh tools/felucca_tests.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: felucca-tests
+          path: |
+            build/tests/*.log
+            build/tests/*.fails
 
       - uses: actions/upload-artifact@v4
         with:
