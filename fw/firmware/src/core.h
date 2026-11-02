@@ -44,6 +44,10 @@
 #if FELUCCA_ADPCM && !FELUCCA_SLICE
 #error "FELUCCA_ADPCM needs FELUCCA_SLICE (ADPCM is engine 14, after SLICE)"
 #endif
+#ifndef AMEN_SETUP
+#define AMEN_SETUP 1             /* AMEN: the jungle setup at power-on (engines.c TRK_DEF, params.c BPM 170); 0 = Felucca's
+                                  * (Felucca's host tests expect its tracks and 120 BPM: tools/felucca_tests.sh) */
+#endif
 #define NENG_BUILTIN (13 + FELUCCA_SLICE + FELUCCA_ADPCM)   /* SLICE (13), then ADPCM (14): the other engines keep
                                                              * their numbers */
 #if FELUCCA_PLUGINS

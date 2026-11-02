@@ -26,3 +26,4 @@ BUILDING.md says). GitHub Actions builds it on every push: the package is `amen-
 - `firmware/src/params.c` (N_ENGNAME), `firmware/src/icons.c` (the engines' icons; TRIO's MODE icon case removed),
   `firmware/src/ui_graph.c` (the 4-letter tags JNGL, RESE): the names of engines 2 and 6.
 - `firmware/src/ui_menu.c`: the credits start with AMEN.
+- `firmware/src/core.h`: AMEN_SETUP (1: the jungle setup; 0: Felucca's tracks and 120 BPM, for Felucca's host tests).

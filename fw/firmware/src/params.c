@@ -196,7 +196,7 @@ static const param_desc_t *ins_desc(int32_t type, uint32_t k)
 }
 
 static const param_desc_t GP[G_COUNT] = {
-    [G_BPM] = PD("BPM", F_BPM, 40, 240, 170),   /* AMEN: 170 */
+    [G_BPM] = PD("BPM", F_BPM, 40, 240, AMEN_SETUP ? 170 : 120),   /* AMEN: 170 */
     [G_SWING] = PD("SWG", F_PCT, 0, 100, 0),
     [G_CLOCK] = PE("CLK", N_CLOCK, 0),
     [G_TUNE] = PD("TUNE", F_INT, -50, 50, 0),     /* cents; edited on MENU > AUDIO TUNE (1.2: menu_items.c MI_TUNE) */

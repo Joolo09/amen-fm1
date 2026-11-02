@@ -284,7 +284,12 @@ static const struct {
 #define NPATTERNS (sizeof PATTERNS / sizeof PATTERNS[0])
 
 /* the parts at power-on (engine, preset, PATTERNS[n - 1] in the sequencer, 0 = empty: all are): bass, pad, lead, drums */
+#if AMEN_SETUP
 static const uint8_t TRK_DEF[NPART][3] = {{2, 1, 15}, {6, 0, 17}, {2, 10, 0}, {ENGI_DRUM, 0, 0}}; /* AMEN: JUNGLE AMEN+5
                                                                        * with the JUNGLE edit, REESE with its line, JUNGLE
                                                                        * BRKCORE (empty: for edits), DRUM KIT */
+#else
+static const uint8_t TRK_DEF[NPART][3] = {{0, 4, 0}, {ENGI_FM6, 4, 0}, {3, 0, 0}, {ENGI_DRUM, 0, 0}}; /* ANALOG ACID,
+                                                                       * FM6 PAD (was DIGITAL PAD), LOFI PULSE LD, DRUM KIT */
+#endif
 static uint32_t trk_def_engine(uint32_t i) { return TRK_DEF[i % NPART][0]; }
