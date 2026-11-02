@@ -51,7 +51,12 @@ enum { JNG_POLY, JNG_CHOKE, JNG_GATE };
 #define JNG_LEN_MAX 40000u           /* a slice lasts at most ~0.9 s of break time (a voice frees soon) */
 #define JNG_TAIL_BACK 3u             /* tails come from up to three sixteenths back */
 #define JNG_FADE 2048u               /* a forward slice fades out over its last 46 ms */
-#define JNG_SIXTEENTH 3891u          /* a sixteenth of break time: 170 BPM at PTCH 0 */
+#ifndef JNG_SIXTEENTH
+#define JNG_SIXTEENTH 3891u          /* a sixteenth of break time: 170 BPM at PTCH 0 (a host may give its tempo's) */
+#endif
+#ifndef JNG_SPEED
+#define JNG_SPEED(sp) (sp)           /* a host's speed on top of PTCH, Q12 in Q12 out (AMEN OS: TAPE STOP) */
+#endif
 #define JNG_CHOKE_STEP 372           /* the choke fade: Q15 a sample, ~2 ms */
 
 /* the components and their time constants at DECAY 48 (samples at 44.1 kHz) */
@@ -181,13 +186,15 @@ static void jng_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
     uint32_t tail = (flags >> JNG_TAIL_SHIFT) & 127u, off = ((flags >> JNG_OFF_SHIFT) & 3u) * JNG_SIXTEENTH;
     uint32_t all = (mask | tail) & 127u, sm = (mask & (JS | JG)) ? mask : tail;   /* the snare's own or a tail's */
     uint32_t len = (flags >> JNG_LEN_SHIFT) << 5, sp = JNG_SPD[clamp(p[P_E2], -12, 12) + 12];
-    uint32_t step = sp >> 4, tq = v->ph[0], kph = v->ph[1];
+    uint32_t step, tq = v->ph[0], kph = v->ph[1];
     int32_t crush = clamp(p[P_E4], 0, 127), tone = clamp(p[P_E7], 0, 127);
     int32_t drive = 4096 + crush * 40, hold = 1 + (crush >> 4), drop = crush / 12;
     int32_t hn = v->s[5] >> 8, hc = v->s[5] & 255, mlp = v->s[6], gain = v->s[7];
     int32_t n1 = v->s[1], n2 = v->s[2], ic1 = v->s[3], ic2 = v->s[4];
     int32_t vel = v->vel * 258, acc = (mask & JA) ? 32767 : 19660;
     int32_t sn = (sm & JS) ? 32767 : 9830;         /* a ghost snare: -10 dB */
+    sp = JNG_SPEED(sp);
+    step = sp >> 4;
     if (!all)
         return;
     if (clamp(p[P_E6], 0, 2) == JNG_GATE && !v->gate)

@@ -3,7 +3,7 @@ CC ?= cc
 CFLAGS ?= -O2 -std=c99 -Wall -Wextra -Wno-unused-function -Wno-unused-parameter -ffp-contract=off
 B := build
 
-.PHONY: all test demo breaks plugins fm1 clean
+.PHONY: all test sim demo breaks plugins fm1 os clean
 
 all: test
 
@@ -27,6 +27,21 @@ demo: $(B)/amen_host
 
 breaks: $(B)/amen_host
 	for n in 0 1 2 3 4 5 6 7; do $(B)/amen_host break $$n $(B)/break$$n.wav; done
+
+# AMEN OS on the desktop: the scripted session (screens as PPM, the audio as WAV, checks)
+$(B)/amen_sim: os/host/sim.c os/amen.h os/amen.c os/core.c os/ui.c os/font.h engines/eng_jungle.c engines/eng_reese.c engines/jungle_data.h $(B)/fe_tables.h
+	$(CC) $(CFLAGS) -I$(B) -Isdk/src -Iengines -Ios -o $@ os/host/sim.c
+
+os/font.h: tools/gen_font.py
+	python3 tools/gen_font.py
+
+sim: $(B)/amen_sim
+	@mkdir -p $(B)/sim
+	$(B)/amen_sim $(B)/sim
+
+# AMEN OS for the FM-1 (needs JIELI_TOOLCHAIN and AC79_SDK)
+os:
+	sh tools/build_os.sh
 
 # desktop plugin libraries (Felucca's SDL2 / libretro builds load them with --plugins DIR)
 plugins: $(B)/plugins/jungle.so $(B)/plugins/reese.so
