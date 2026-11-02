@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The installer site against a fake FM-1 (mock_midi.js) in Chromium: stock V15 -> Felucca -> the AMEN plugins, a
-// resumed write, a Felucca without plugins, no device, a phone's width.
+// The installer site against a fake FM-1 (mock_midi.js) in Chromium: stock V15 -> the AMEN firmware, a resumed
+// write, a Felucca already on it, no device, a phone's width.
 //   node tests/site/e2e.js build/site [SCREENSHOT_DIR]      (needs playwright; exit 1 on a failure)
 const { chromium } = require("playwright");
 const fs = require("fs"), path = require("path"), http = require("http");
@@ -18,7 +18,8 @@ const srv = http.createServer((q, r) => {
 const URL = "http://localhost:8765/";
 
 // the image the device reads (the .fwsc without its 20 marker bytes) and the mock's weighted sum of it
-const pkg = fs.readFileSync(path.join(root, "firmware/felucca-1.9.0.fwsc"));
+const meta = JSON.parse(fs.readFileSync(path.join(root, "firmware/amen.json"), "utf8"));
+const pkg = fs.readFileSync(path.join(root, meta.file));
 const img = Buffer.alloc(pkg.length - 20);
 for (let i = 0; i < 20; i++) pkg.copy(img, i * 0x2F, i * 0x30, i * 0x30 + 0x2F);
 pkg.copy(img, 20 * 0x2F, 20 * 0x30);
@@ -32,9 +33,9 @@ async function open(b, setup, viewport = { width: 900, height: 1400 }) {
   page.on("pageerror", (e) => page.errors.push(String(e)));
   page.on("console", (m) => m.type() === "error" && !/favicon|fonts\.g/.test(m.text()) && page.errors.push(m.text()));
   await page.addInitScript({ path: path.join(__dirname, "mock_midi.js") });
-  await page.addInitScript(`window.addEventListener("DOMContentLoaded", () => { Object.assign(window.__fm1, { imageSize: ${img.length}, target: "FM-1_919" }, ${setup}); window.confirm = () => true; })`);
+  await page.addInitScript(`window.addEventListener("DOMContentLoaded", () => { Object.assign(window.__fm1, { imageSize: ${img.length}, target: "${meta.product}" }, ${setup}); window.confirm = () => true; })`);
   await page.goto(URL);
-  await page.waitForFunction(() => document.getElementById("log").textContent.includes("REESE"), null, { timeout: 15000 });
+  await page.waitForFunction(() => document.getElementById("log").textContent.includes("загружена"), null, { timeout: 15000 });
   return page;
 }
 const text = (p, id) => p.textContent(id);
@@ -53,27 +54,14 @@ const text = (p, id) => p.textContent(id);
   await p.waitForFunction((re) => new RegExp(re).test(document.getElementById("st1").textContent), FW_DONE.source, { timeout: 180000 });
   const st = await p.evaluate(() => ({ fw: window.__fm1.fw, bytes: window.__fm1.otaBytes, sum: window.__fm1.chunkSum }));
   check(/установлена/.test(await text(p, "#st1")), "firmware: " + await text(p, "#st1"));
-  check(st.fw === "FM-1_919" && st.bytes === img.length && st.sum === want, `the whole image written (${st.bytes} B, ${st.fw})`);
-  await p.waitForTimeout(2500);
-  await p.click("#plgo");
-  await p.waitForFunction(() => /Готово|Ошибка|не отвечает|но /.test(document.getElementById("st2").textContent), null, { timeout: 60000 });
-  check(/Готово/.test(await text(p, "#st2")), "plugins: " + await text(p, "#st2"));
-  const same = await p.evaluate(async () => {
-    const res = [];
-    for (const [k, f] of [[0, "fep/jungle.s0.fep"], [1, "fep/reese.s1.fep"]]) {
-      const w = new Uint8Array(await (await fetch(f)).arrayBuffer()), got = window.__fm1.blobs[k];
-      res.push(got.length === w.length && w.every((x, i) => got[i] === x));
-    }
-    return res;
-  });
-  check(same[0] && same[1], "both .fep written byte for byte into their slots");
-  check(/ИГРАЕТ/.test(await text(p, "#slot0")) && /ИГРАЕТ/.test(await text(p, "#slot1")), "both slots play after the restart");
+  check(st.fw === meta.product && st.bytes === img.length && st.sum === want, `the whole image written (${st.bytes} B, ${st.fw})`);
+  check(/AMEN/.test(await text(p, "#devchip")), "the device shows AMEN " + await text(p, "#devchip"));
   check(!p.errors.length, "no page errors " + p.errors.join("; "));
   if (shots) await p.screenshot({ path: path.join(shots, "installer.png"), fullPage: true });
   await p.close();
 
   // an interrupted write: the FM-1 waits in its update loader
-  p = await open(b, `{ mode: "ota", fw: "FM-1_919" }`);
+  p = await open(b, `{ mode: "ota", fw: "${meta.product}" }`);
   await p.click("#connect");
   await p.waitForFunction(() => /ОБНОВЛЕНИЯ/.test(document.getElementById("devchip").textContent));
   await p.check("#fwok");
@@ -82,13 +70,18 @@ const text = (p, id) => p.textContent(id);
   check(/установлена/.test(await text(p, "#st1")), "resume: " + await text(p, "#st1"));
   await p.close();
 
-  // a Felucca without plugins
-  p = await open(b, `{ fw: "FM-1_918", plugins: false }`);
+  // Felucca on the FM-1: offered the AMEN firmware
+  p = await open(b, `{ fw: "${meta.product === "FM-1_918" ? "FM-1_917" : "FM-1_918"}" }`);
   await p.click("#connect");
   await p.waitForFunction(() => /FELUCCA/.test(document.getElementById("devchip").textContent));
-  await p.click("#plgo");
-  await p.waitForFunction(() => /не отвечает|Готово/.test(document.getElementById("st2").textContent), null, { timeout: 20000 });
-  check(/не отвечает/.test(await text(p, "#st2")), "old Felucca: asked to update first");
+  check(/шаг 01/.test(await text(p, "#st0")), "Felucca found: " + await text(p, "#st0"));
+  await p.close();
+
+  // AMEN already on it
+  p = await open(b, `{ fw: "${meta.product}" }`);
+  await p.click("#connect");
+  await p.waitForFunction(() => /AMEN/.test(document.getElementById("devchip").textContent));
+  check(/уже стоит/.test(await text(p, "#st0")), "AMEN found: " + await text(p, "#st0"));
   await p.close();
 
   // no FM-1

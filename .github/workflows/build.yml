@@ -43,7 +43,7 @@ jobs:
         run: |
           set -e
           sudo apt-get install -y -q libraqm0 libfribidi0 >/dev/null
-          pip install -q Pillow
+          pip install -q Pillow fonttools
           git clone -q --depth 1 --filter=blob:none --sparse --branch AC79NN_SDK_V1.2.1_2023-12-13 \
             https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$HOME/fw-AC79_AIoT_SDK"
           git -C "$HOME/fw-AC79_AIoT_SDK" sparse-checkout set cpu/wl82/tools

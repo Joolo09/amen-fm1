@@ -189,54 +189,36 @@
   </section>
 
   <section class="frame" id="s1">
-    <h2><span class="num">01</span> ПРОШИВКА FELUCCA <span class="tag">BETA</span></h2>
-    <p>Движки AMEN-FM1 — это плагины для открытой прошивки <a href="https://github.com/hugelton/Felucca" target="_blank" rel="noopener">Felucca</a>. Плагины она загружает с версии <b>1.9</b>. Этот шаг ставит <b>Felucca <span id="fwver">1.9.0</span></b>. Если она уже стоит, шаг можно пропустить.</p>
-    <div class="warnbox">
-      <p>Не отключайте кабель, пока идёт запись. Если запись прервалась, переподключите FM-1 и нажмите кнопку снова: устройство остаётся в режиме обновления, и запись продолжится.</p>
-      <p>Проекты заводской прошивки Felucca не открывает. Перед первой установкой сохраните их программой M-VAVE.</p>
-    </div>
-    <label class="check"><input type="checkbox" id="fwok"> <span>Я понимаю, что это бета-версия сторонней прошивки и я ставлю её на свой риск. Вернуть заводскую V15 можно через <a href="https://hugelton.github.io/Felucca/" target="_blank" rel="noopener">установщик Felucca</a> или M-UPGRADE от M-VAVE.</span></label>
-    <div class="row">
-      <button class="btn" id="fwgo" disabled>ПРОШИТЬ FELUCCA</button>
-    </div>
-    <div class="bar" id="fwbar" aria-hidden="true"></div>
-    <div class="status" id="st1" role="status" aria-live="polite"></div>
-  </section>
-
-  <section class="frame" id="s2">
-    <h2><span class="num">02</span> ДВИЖКИ AMEN</h2>
+    <h2><span class="num">01</span> ПРОШИВКА AMEN <span class="tag">BETA</span></h2>
+    <p>Прошивка <b>AMEN <span id="fwver">…</span></b> для jungle, drum &amp; bass и breakcore. Движки встроены в неё: после установки FM-1 сразу стартует на 170 BPM с нарезанным брейком, вторым брейком для эдитов, reese-басом и драм-китом.</p>
     <div class="cards">
       <div class="card">
         <h3>JUNGLE</h3>
         <p>Нарезанный брейк: 8 брейков × 32 слайса, питч, реверс, чок, кранч.</p>
-        <div class="meta"><span class="chip">СЛОТ 0</span><span class="chip" id="slot0">?</span></div>
       </div>
       <div class="card">
         <h3>REESE</h3>
         <p>DnB-бас: расстроенные пилы, саб, драйв, фильтр, движение.</p>
-        <div class="meta"><span class="chip">СЛОТ 1</span><span class="chip" id="slot1">?</span></div>
       </div>
     </div>
-    <div class="row">
-      <button class="btn pink" id="plgo" disabled>УСТАНОВИТЬ ОБА</button>
-      <button class="btn ghost" id="plinfo" disabled>ПРОВЕРИТЬ СЛОТЫ</button>
+    <div class="warnbox">
+      <p>Не отключайте кабель, пока идёт запись. Если запись прервалась, переподключите FM-1 и нажмите кнопку снова: устройство остаётся в режиме обновления, и запись продолжится.</p>
+      <p>Проекты заводской прошивки AMEN не открывает. Перед первой установкой сохраните их программой M-VAVE.</p>
     </div>
-    <div class="bar pinkbar" id="plbar" aria-hidden="true"></div>
-    <div class="status" id="st2" role="status" aria-live="polite"></div>
-    <details>
-      <summary>СВОЙ .FEP / ОЧИСТКА СЛОТОВ</summary>
-      <p class="sub">Можно поставить любой плагин Felucca (.fep): он сам знает, в какой слот его собрали.</p>
-      <div class="row"><input type="file" id="fepfile" accept=".fep"><button class="btn ghost" id="fepgo" disabled>УСТАНОВИТЬ ФАЙЛ</button></div>
-      <div class="row"><button class="btn ghost" id="er0" disabled>ОЧИСТИТЬ СЛОТ 0</button><button class="btn ghost" id="er1" disabled>ОЧИСТИТЬ СЛОТ 1</button></div>
-    </details>
+    <label class="check"><input type="checkbox" id="fwok"> <span>Я понимаю, что это бета-версия сторонней прошивки и я ставлю её на свой риск. Вернуть заводскую V15 можно через M-UPGRADE от M-VAVE или <a href="https://hugelton.github.io/Felucca/" target="_blank" rel="noopener">установщик Felucca</a>.</span></label>
+    <div class="row">
+      <button class="btn pink" id="fwgo" disabled>ПРОШИТЬ AMEN</button>
+    </div>
+    <div class="bar pinkbar" id="fwbar" aria-hidden="true"></div>
+    <div class="status" id="st1" role="status" aria-live="polite"></div>
   </section>
 
   <section class="frame" id="s3">
-    <h2><span class="num">03</span> ИГРАТЬ</h2>
+    <h2><span class="num">02</span> ИГРАТЬ</h2>
     <ol class="steps-list">
-      <li>Темп <b>170 BPM</b>. Трек 1 → ручка ENG → <b>JUNGLE</b>, пресет <b>AMEN</b>.</li>
-      <li>Нижняя клавиша (F3) — слайс 0, дальше по порядку. Записывайте слайсы в шаги — брейк перестраивается.</li>
-      <li>Трек 2 → <b>REESE</b>, пресет <b>REESE</b> или <b>DEEP</b>: длинные ноты, 1–2 на такт.</li>
+      <li>Нажмите PLAY: трек 1 — JUNGLE с jungle-эдитом, трек 2 — REESE, трек 3 — пустой JUNGLE для своих эдитов, трек 4 — драм-кит.</li>
+      <li>Нижняя клавиша (F3) — слайс 0, дальше по порядку. Записывайте слайсы в шаги — брейк перестраивается. Готовые фразы: SAVE → PHRASES → BREAK, JUNGLE, ROLLER, REESE.</li>
+      <li>Другие брейки и басы: PRESETS на треке (AMEN, THINK, FUNKY, APACHE, ROLLER, HALFTME, RAGGA… / REESE, DEEP, NEURO, HOOVER…).</li>
       <li>Ломайте: RATCH на снейровых слайсах, REV R25%, MODE GATE, CRSH 90+.</li>
     </ol>
     <p class="sub">Демо, отрендеренное тем же кодом на компьютере:</p>
@@ -255,7 +237,7 @@
   </details>
 
   <footer>
-    <p>AMEN-FM1: GPL-3.0, без гарантий. Прошивка <a href="https://github.com/hugelton/Felucca">Felucca</a> © Leo Kuroshita / Hügelton Instruments, GPL-3.0; в пакете есть файлы JieLi AC79 SDK (Apache-2.0): <a href="firmware/LICENSING.md">лицензии</a>, <a href="firmware/LICENSE">GPL-3.0</a>, <a href="firmware/felucca-1.9.0-source.tar.gz">исходники Felucca 1.9.0</a>, <a href="firmware/felucca-1.9.0.fwsc">пакет</a>. Исходники AMEN-FM1: <a href="https://github.com/Joolo09/amen-fm1">GitHub</a>. Код прошивки по USB взят из Felucca без изменений. M-VAVE и FM-1 — товарные знаки их владельцев; проект с ними не связан.</p>
+    <p>AMEN-FM1: GPL-3.0, без гарантий. Прошивка AMEN построена на <a href="https://github.com/hugelton/Felucca">Felucca</a> 1.9.0 © Leo Kuroshita / Hügelton Instruments (GPL-3.0), список изменений — <a href="https://github.com/Joolo09/amen-fm1/blob/claude/clever-keller-ekaj8l/fw/AMEN.md">fw/AMEN.md</a>; в пакете есть файлы JieLi AC79 SDK (Apache-2.0): <a href="firmware/LICENSING.md">лицензии</a>, <a href="firmware/LICENSE">GPL-3.0</a>, <a href="firmware/amen-source.tar.gz">исходники</a>. Код прошивки по USB взят из установщика Felucca без изменений. M-VAVE и FM-1 — товарные знаки их владельцев; проект с ними не связан.</p>
   </footer>
 </main>
 <script type="module" src="app.js"></script>
