@@ -36,11 +36,15 @@ static void draw_about_qr(int32_t x, int32_t y)
 enum { MC_TEXT, MC_TITLE, MC_URL };
 typedef struct { const char *text; uint8_t kind; } menu_credit_t;
 static const menu_credit_t MENU_CREDITS[] = {
+    {"AMEN", MC_TITLE},                     /* AMEN: the jungle firmware on Felucca */
+    {"JUNGLE and REESE engines, the jungle setup: GPL-3.0", MC_TEXT},
+    {"https://github.com/Joolo09/amen-fm1", MC_URL},
+    {"", MC_TEXT},
     {"H\xFCgelton Instruments", MC_TITLE},  /* Felucca's own: above; these are ours too */
     {"Leo Kuroshita", MC_TEXT},
     {"The DRUM engine: GPL-3.0", MC_TEXT},
     {"The Sample Pack: CC0", MC_TEXT},
-    {"Felucca-Engines (ANALOG LOFI TRIO WHEEL NOISE PHASE): MIT", MC_TEXT},
+    {"Felucca-Engines (ANALOG LOFI WHEEL NOISE): MIT", MC_TEXT},
     {"Fukiai icon font: MIT", MC_TEXT},
     {"https://github.com/hugelton", MC_URL},
     {"", MC_TEXT},

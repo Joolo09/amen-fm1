@@ -23,3 +23,6 @@ here. The editor protocol still names the firmware `FELUCCA vX.Y`, so Felucca's 
 
 `tools/build_amen.sh` at the repository's root (the JieLi toolchain and three files of the JieLi AC79 SDK, as Felucca's
 BUILDING.md says). GitHub Actions builds it on every push: the package is `amen-X.Y.fwsc`.
+- `firmware/src/params.c` (N_ENGNAME), `firmware/src/icons.c` (the engines' icons; TRIO's MODE icon case removed),
+  `firmware/src/ui_graph.c` (the 4-letter tags JNGL, RESE): the names of engines 2 and 6.
+- `firmware/src/ui_menu.c`: the credits start with AMEN.
