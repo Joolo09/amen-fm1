@@ -55,7 +55,7 @@ const text = (p, id) => p.textContent(id);
   const st = await p.evaluate(() => ({ fw: window.__fm1.fw, bytes: window.__fm1.otaBytes, sum: window.__fm1.chunkSum }));
   check(/установлена/.test(await text(p, "#st1")), "firmware: " + await text(p, "#st1"));
   check(st.fw === meta.product && st.bytes === img.length && st.sum === want, `the whole image written (${st.bytes} B, ${st.fw})`);
-  check(/AMEN OS/.test(await text(p, "#devchip")), "the device shows AMEN OS " + await text(p, "#devchip"));
+  check(/AMEN/.test(await text(p, "#devchip")), "the device shows AMEN " + await text(p, "#devchip"));
   check(!p.errors.length, "no page errors " + p.errors.join("; "));
   if (shots) await p.screenshot({ path: path.join(shots, "installer.png"), fullPage: true });
   await p.close();

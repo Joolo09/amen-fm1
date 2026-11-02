@@ -1,6 +1,6 @@
-# Builds and tests AMEN-FM1 on every push: the engines' tests, AMEN OS in its desktop simulator, AMEN OS for the FM-1
-# with JieLi's Linux toolchain, the Felucca plugin blobs (.fep), and the installer site (site/, tested against a fake
-# FM-1). Pushes to the default branch publish the site on GitHub Pages.
+# Builds and tests AMEN-FM1 on every push: the desktop tests and demo, the FM-1 plugin blobs (.fep) with JieLi's
+# Linux toolchain, and the installer site (site/, tested against a fake FM-1). Pushes to the default branch publish
+# the site on GitHub Pages. The .fep files, the demo and the desktop plugins are the run's artifacts.
 name: build
 
 on:
@@ -62,10 +62,38 @@ jobs:
           fi
           ls -la "$t/uboot.boot" "$t/cfg_tool.bin" "$t/cfg/eq_cfg_hw.bin"
 
+      - name: AMEN firmware
+        env:
+          JIELI_TOOLCHAIN: /home/runner/.jieli/toolchain
+          AC79_SDK: /home/runner/fw-AC79_AIoT_SDK
+        run: sh tools/build_amen.sh 0.1
+
+      - name: Felucca's host tests, AMEN against Felucca 1.9.0
+        env:
+          JIELI_TOOLCHAIN: /home/runner/.jieli/toolchain
+          AC79_SDK: /home/runner/fw-AC79_AIoT_SDK
+        run: sh tools/felucca_tests.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: felucca-tests
+          path: |
+            build/tests/*.log
+            build/tests/*.fails
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: amen-firmware
+          path: |
+            build/amen/*.fwsc
+            build/amen/*.bin
+            build/amen/amen.json
+
       - name: AMEN OS on the desktop (the simulator's session and checks)
         run: make sim
 
-      - name: AMEN OS for the FM-1
+      - name: AMEN OS for the FM-1 (built and kept as an artifact; NOT on the site until it runs on hardware)
         env:
           JIELI_TOOLCHAIN: /home/runner/.jieli/toolchain
           AC79_SDK: /home/runner/fw-AC79_AIoT_SDK
@@ -73,13 +101,11 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: amen-os
+          name: amen-os-experimental
           path: |
             build/os/*.fwsc
-            build/os/amen-os.bin
             build/os/amen-os.json
             build/sim/*.ppm
-            build/sim/session.wav
 
       - name: Installer site
         run: sh tools/build_site.sh
