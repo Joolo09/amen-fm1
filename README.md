@@ -7,7 +7,7 @@
 
 Оба движка — **плагины для [Felucca](https://github.com/hugelton/Felucca)**, открытой прошивки для FM-1. Felucca с версии 1.9 загружает движки-плагины из флеша и показывает их на ручке ENG рядом со своими. Плагины ставятся поверх Felucca без пересборки прошивки и переживают её обновления.
 
-> **Статус: прототип, на железе пока не запускался.** Звук и логика проверены на ПК (`make test`, `make demo`) на том же целочисленном коде и тех же таблицах, что использует FM-1. Бинарники для FM-1 (`.fep`) нужно собрать тулчейном JieLi (см. [docs/BUILD.md](docs/BUILD.md)). Это первая проверка, которую стоит сделать на устройстве.
+> **Статус: прототип, на железе пока не запускался.** Звук и логика проверены на ПК (`make test`, `make demo`) на том же целочисленном коде и тех же таблицах, что использует FM-1. Файлы для FM-1 (`.fep`) собирает GitHub Actions тулчейном JieLi при каждом пуше. Размеры: JUNGLE — 4712 Б из 8192, REESE — 3000 Б из 7680. Осталось проверить их на устройстве.
 
 Послушать: [docs/demo.mp3](docs/demo.mp3) — 8 тактов при 170 BPM, отрендерено на ПК тем же кодом (брейк как есть → jungle edit → DnB-перестановка с роллами → breakcore поверх; REESE с 3-го такта).
 
@@ -20,15 +20,15 @@
 ## Установка
 
 1. Поставить на FM-1 **Felucca 1.9+** (сборка с плагинами; на момент написания 1.9 в бете) через [веб-установщик](https://hugelton.github.io/Felucca/) в Chrome/Edge. Вернуться на заводскую прошивку можно через тот же установщик (Return to official V15) или M-UPGRADE от M-VAVE.
-2. Собрать плагины: `make fm1` (нужен тулчейн JieLi, [docs/BUILD.md](docs/BUILD.md)). Получатся `build/fm1/jungle.s0.fep` и `build/fm1/reese.s1.fep`.
+2. Скачать готовые плагины: вкладка **Actions** репозитория → последний успешный запуск **build** → артефакт **amen-fm1-fep** (zip с `jungle.s0.fep` и `reese.s1.fep`). Или собрать самому: `make fm1` (нужен тулчейн JieLi, [docs/BUILD.md](docs/BUILD.md)).
 3. Залить их утилитой Felucca (`pip3 install mido python-rtmidi`):
 
    ```bash
-   python3 tools/fm1_plugin.py install build/fm1/jungle.s0.fep
+   python3 tools/fm1_plugin.py install jungle.s0.fep
    ```
 
    ```bash
-   python3 tools/fm1_plugin.py install build/fm1/reese.s1.fep
+   python3 tools/fm1_plugin.py install reese.s1.fep
    ```
 
    (`tools/fm1_plugin.py` лежит в репозитории Felucca.) FM-1 перезагрузится, и JUNGLE с REESE появятся на ручке ENG после движков Felucca.
