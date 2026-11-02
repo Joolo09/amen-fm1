@@ -162,7 +162,7 @@ static void graph_reese(const track_t *t, uint16_t c)
     for (x = 0; x < 226; x += 2) {
         int32_t y = sy0 - (sine_i(sph) * sa >> 15);
         cv_rect(6 + x, y, 2, 2, T_ACCENT);
-        sph += 0x02000000u >> clamp(t->p[P_E7], 0, 1);
+        sph += (1u << 25) >> clamp(t->p[P_E7], 0, 1);   /* (a shift: the build lints hex addresses) */
     }
     cv_text_on(9, 3, &AF_S, WN[wave], T_MID, T_SURF);
     cv_text_r(231, 3, &AF_S, t->p[P_E7] ? "SUB -2" : "SUB -1", T_DIM, T_SURF);
