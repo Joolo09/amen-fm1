@@ -42,6 +42,13 @@ function chip(id, text, kind = "") {
 bar("fwbar", 0);
 
 let midi = null, busy = false, image = null, FW = null;
+// ?fw=os: the AMEN OS test build (firmware/amen-os.json), opt-in; the page installs AMEN (Felucca-based) otherwise
+const OS = new URLSearchParams(location.search).get("fw") === "os";
+const NAME = OS ? "AMEN OS" : "AMEN";
+if (OS) {
+  $("ostest").hidden = false;
+  $("fwname").textContent = $("fwname2").textContent = NAME;
+}
 const MIDI_TEXT = {
   notfound: "FM-1 не найден. Проверьте кабель (с передачей данных), подключите напрямую, закройте другие MIDI-программы.",
   model: "Подключено не FM-1.",
@@ -68,15 +75,16 @@ async function fetchBytes(url) {
 }
 (async () => {
   try {
-    const r = await fetch("firmware/amen.json", { cache: "no-cache" });
-    if (!r.ok) throw new Error(`firmware/amen.json: HTTP ${r.status}`);
+    const json = OS ? "firmware/amen-os.json" : "firmware/amen.json";
+    const r = await fetch(json, { cache: "no-cache" });
+    if (!r.ok) throw new Error(`${json}: HTTP ${r.status}`);
     FW = await r.json();
     $("fwver").textContent = FW.version;
     const pkg = await fetchBytes(FW.file);
     if (productOf(pkg) !== FW.product) throw new Error(`идентификатор пакета ${productOf(pkg)}, ожидался ${FW.product}`);
     if ((await sha256hex(pkg)) !== FW.sha256) throw new Error("контрольная сумма прошивки не совпадает");
     image = logicalImage(pkg);
-    log(`прошивка AMEN ${FW.version} загружена (${pkg.length} Б, ${FW.product})`);
+    log(`прошивка ${NAME} ${FW.version} загружена (${pkg.length} Б, ${FW.product})`);
   } catch (e) {
     say("st1", "Не удалось загрузить прошивку: " + e.message, "err");
     log(String(e.stack || e));
@@ -99,7 +107,8 @@ async function access() {
 function describe(id) {
   if (!id) return { text: "НЕТ УСТРОЙСТВА", kind: "err" };
   if (/^ota-/i.test(id.model)) return { text: "РЕЖИМ ОБНОВЛЕНИЯ", kind: "warn", ota: true };
-  if (FW && id.text === FW.product) return { text: `AMEN ${FW.version}`, kind: "ok", current: true };
+  if (FW && id.text === FW.product) return { text: `${NAME} ${FW.version}`, kind: "ok", current: true };
+  if (id.version >= 700 && id.version <= 799) return { text: `AMEN OS (${id.text})`, kind: "warn" };
   if (id.version >= 900 && id.version <= 999) return { text: `FELUCCA/AMEN (${id.text})`, kind: "warn" };
   return { text: `ЗАВОДСКАЯ (${id.text})`, kind: "warn" };
 }
@@ -115,8 +124,8 @@ $("connect").addEventListener("click", async () => {
     const id = dev && dev.id, d = describe(id);
     chip("devchip", d.text, d.kind);
     if (!id) say("st0", MIDI_TEXT.notfound, "err");
-    else if (d.ota) say("st0", "FM-1 в режиме обновления: запись прервалась. Нажмите «ПРОШИТЬ AMEN», чтобы продолжить.", "busy");
-    else if (d.current) say("st0", `На FM-1 уже стоит AMEN ${FW.version}. Прошить заново можно в шаге 01.`, "ok");
+    else if (d.ota) say("st0", `FM-1 в режиме обновления: запись прервалась. Нажмите «ПРОШИТЬ ${NAME}», чтобы продолжить.`, "busy");
+    else if (d.current) say("st0", `На FM-1 уже стоит ${NAME} ${FW.version}. Прошить заново можно в шаге 01.`, "ok");
     else say("st0", `Найден FM-1 (${id.text}). Дальше шаг 01.`, "ok");
     if (id && !d.current) $("s1").classList.add("hot");
     log(`устройство: ${id ? id.text : "нет"}`);
@@ -154,9 +163,9 @@ $("fwgo").addEventListener("click", async () => {
     } else {
       await up.install(image, FW.product, step);
     }
-    say("st1", `AMEN ${FW.version} установлена! FM-1 перезапустился — жмите PLAY.`, "ok");
-    say("st0", `На FM-1 стоит AMEN ${FW.version}.`, "ok");
-    chip("devchip", `AMEN ${FW.version}`, "ok");
+    say("st1", `${NAME} ${FW.version} установлена! FM-1 перезапустился — жмите PLAY.`, "ok");
+    say("st0", `На FM-1 стоит ${NAME} ${FW.version}.`, "ok");
+    chip("devchip", `${NAME} ${FW.version}`, "ok");
     $("s1").classList.remove("hot");
     $("s3").classList.add("hot");
   } catch (e) {

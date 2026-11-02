@@ -53,6 +53,7 @@ static int plat_midi_get(uint8_t m[3])
 }
 
 #include "amen.c"
+#include "safe.c"
 
 /* ------------------------------------------------------------------------------------------ the session --- */
 static const char *out_dir;
@@ -92,12 +93,17 @@ static void turn(uint32_t e, int32_t d) { sim_in.enc[e] = (int16_t)d; run(40); }
 static void key(uint32_t k, int down) { if (down) sim_in.keys |= 1u << k; else sim_in.keys &= ~(1u << k); run(30); }
 static void white(uint32_t i) { key(WHITE[i], 1); key(WHITE[i], 0); }
 
+static void shot_now(const char *name);
 static void shot(const char *name)
+{
+    run(20);
+    shot_now(name);
+}
+static void shot_now(const char *name)            /* what is on the screen now, no frame drawn first */
 {
     char path[256];
     FILE *f;
     uint32_t i, x, y;
-    run(20);
     snprintf(path, sizeof path, "%s/%s.ppm", out_dir, name);
     f = fopen(path, "wb");
     if (!f) { perror(path); exit(2); }
@@ -230,6 +236,13 @@ int main(int argc, char **argv)
     midiq[mq_w % 64u][0] = 0x92; midiq[mq_w % 64u][1] = 40; midiq[mq_w % 64u][2] = 100; mq_w++;
     run(100);
     CHECK(trk[T_BASS].v[0].active && trk[T_BASS].v[0].note == 40u, "MIDI channel 3 plays the bass");
+    {   /* the audio is late on the device: a voice goes */
+        uint32_t before = 0, after = 0, p, k;
+        for (p = 0; p < NPART; p++) for (k = 0; k < NVOICE; k++) before += trk[p].v[k].active;
+        audio_shed();
+        for (p = 0; p < NPART; p++) for (k = 0; k < NVOICE; k++) after += trk[p].v[k].active;
+        CHECK(before > 0u && after == before - 1u, "audio_shed: one voice of %u goes", before);
+    }
 
     /* save, then a power cycle */
     tap(B_SAVE);
@@ -247,6 +260,14 @@ int main(int argc, char **argv)
     CHECK(!sq.playing, "PLAY again: stopped");
     CHECK(peak <= 32767 && peak > 8000, "the audio: loud, never over full scale (peak %d)", peak);
     CHECK(bands_sent > 0u, "the screen: %u bands sent", bands_sent);
+    {   /* the SAFE MODE screen, as a device shows it after a crash */
+        safe_info_t si;
+        memset(&si, 0, sizeof si);
+        si.stage = 8; si.crash = 1; si.pc = 0x0200A1B4u; si.vec = 1; si.rets = 0x02003F10u; si.dbg = 0x2000u;
+        si.in_audio = 1; si.halves = 5123; si.frames = 210; si.worst_pct = 64; si.sheds = 0;
+        safe_draw(&si);
+        shot_now("15_safe_mode");
+    }
     wav_close();
     printf(fails ? "%d FAILED\n" : "all passed\n", fails);
     return fails ? 1 : 0;

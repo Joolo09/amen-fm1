@@ -18,23 +18,27 @@ const srv = http.createServer((q, r) => {
 const URL = "http://localhost:8765/";
 
 // the image the device reads (the .fwsc without its 20 marker bytes) and the mock's weighted sum of it
-const meta = JSON.parse(fs.readFileSync(path.join(root, "firmware/amen.json"), "utf8"));
-const pkg = fs.readFileSync(path.join(root, meta.file));
-const img = Buffer.alloc(pkg.length - 20);
-for (let i = 0; i < 20; i++) pkg.copy(img, i * 0x2F, i * 0x30, i * 0x30 + 0x2F);
-pkg.copy(img, 20 * 0x2F, 20 * 0x30);
-let want = 0;
-for (let i = 0; i < img.length; i++) want = (want + img[i] * (i % 251 + 1)) % 1000000007;
+function firmware(json) {
+  const meta = JSON.parse(fs.readFileSync(path.join(root, json), "utf8"));
+  const pkg = fs.readFileSync(path.join(root, meta.file));
+  const img = Buffer.alloc(pkg.length - 20);
+  for (let i = 0; i < 20; i++) pkg.copy(img, i * 0x2F, i * 0x30, i * 0x30 + 0x2F);
+  pkg.copy(img, 20 * 0x2F, 20 * 0x30);
+  let want = 0;
+  for (let i = 0; i < img.length; i++) want = (want + img[i] * (i % 251 + 1)) % 1000000007;
+  return { meta, img, want };
+}
+const { meta, img, want } = firmware("firmware/amen.json");
 const FW_DONE = /установлена|Ошибка|остановил|вернулся|появился|пропала|Подключено не/;
 
-async function open(b, setup, viewport = { width: 900, height: 1400 }) {
+async function open(b, setup, viewport = { width: 900, height: 1400 }, fw = { meta, img }, query = "") {
   const page = await b.newPage({ viewport });
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(String(e)));
   page.on("console", (m) => m.type() === "error" && !/favicon|fonts\.g/.test(m.text()) && page.errors.push(m.text()));
   await page.addInitScript({ path: path.join(__dirname, "mock_midi.js") });
-  await page.addInitScript(`window.addEventListener("DOMContentLoaded", () => { Object.assign(window.__fm1, { imageSize: ${img.length}, target: "${meta.product}" }, ${setup}); window.confirm = () => true; })`);
-  await page.goto(URL);
+  await page.addInitScript(`window.addEventListener("DOMContentLoaded", () => { Object.assign(window.__fm1, { imageSize: ${fw.img.length}, target: "${fw.meta.product}" }, ${setup}); window.confirm = () => true; })`);
+  await page.goto(URL + query);
   await page.waitForFunction(() => document.getElementById("log").textContent.includes("загружена"), null, { timeout: 15000 });
   return page;
 }
@@ -96,6 +100,26 @@ const text = (p, id) => p.textContent(id);
   p = await open(b, "{}", { width: 375, height: 800 });
   check(!(await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)), "375 px: no horizontal scroll");
   await p.close();
+
+  // ?fw=os: the AMEN OS test build, opt-in (the page without it never offers it)
+  if (fs.existsSync(path.join(root, "firmware/amen-os.json"))) {
+    const os = firmware("firmware/amen-os.json");
+    p = await open(b, "{}", undefined, os, "?fw=os");
+    check(await p.isVisible("#ostest"), "?fw=os: the test build's warning shows");
+    await p.click("#connect");
+    await p.waitForFunction(() => /ЗАВОДСКАЯ/.test(document.getElementById("devchip").textContent));
+    await p.check("#fwok");
+    await p.click("#fwgo");
+    await p.waitForFunction((re) => new RegExp(re).test(document.getElementById("st1").textContent), FW_DONE.source, { timeout: 180000 });
+    const so = await p.evaluate(() => ({ fw: window.__fm1.fw, bytes: window.__fm1.otaBytes, sum: window.__fm1.chunkSum }));
+    check(/AMEN OS .* установлена/.test(await text(p, "#st1")), "AMEN OS: " + await text(p, "#st1"));
+    check(so.fw === os.meta.product && so.bytes === os.img.length && so.sum === os.want, `AMEN OS: the whole image written (${so.bytes} B, ${so.fw})`);
+    check(!p.errors.length, "no page errors " + p.errors.join("; "));
+    await p.close();
+    p = await open(b, "{}");
+    check(!(await p.isVisible("#ostest")), "without ?fw=os: no AMEN OS");
+    await p.close();
+  }
 
   await b.close();
   srv.close();

@@ -271,6 +271,26 @@ static void part_render(uint32_t part, int32_t *out)
     }
 }
 
+/* the audio is late (a platform's ISR measured it): the oldest sounding voice goes, a break's first */
+static uint32_t shed_count;
+static void audio_shed(void)
+{
+    uint32_t part, k, best_age = 0xFFFFFFFFu;
+    voice_t *best = 0;
+    for (part = 0; part < NPART && !best; part++)
+        for (k = 0; k < NVOICE; k++) {
+            voice_t *v = &trk[part].v[k];
+            if (v->active && v->age < best_age) {
+                best_age = v->age;
+                best = v;
+            }
+        }
+    if (best) {
+        best->active = 0;
+        shed_count++;
+    }
+}
+
 static int part_sounding(uint32_t part)
 {
     uint32_t k;

@@ -24,7 +24,7 @@
 #define SW 240
 #define SH 240
 #define BAND 16
-static uint16_t band[SW * BAND];
+static uint16_t band[SW * BAND] __attribute__((aligned(4)));
 static int32_t by0;                                   /* the band being drawn */
 static uint32_t band_hash[SH / BAND];
 

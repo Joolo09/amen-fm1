@@ -2,7 +2,11 @@
  * AMEN OS on the M-VAVE FM-1: the platform API over felucca-bsp (MPL-2.0, fw/firmware/bsp), from its hwtest example:
  * the boot guard, the key scan and USB on TIMER5, the audio ISR, the screen in bands, the LEDs, the MASTER pot, the
  * project in the flash (two copies, the header last), and the update path (the installer over USB-MIDI; OCT- and
- * OCT+ held 5 s, or the SysEx soft key: UBOOT), so AMEN OS can always be replaced. */
+ * OCT+ held 5 s, or the SysEx soft key: UBOOT), so AMEN OS can always be replaced.
+ *
+ * SAFE MODE: a boot that never got going (a crash, a hang, the watchdog) makes the next boot a SAFE MODE: the screen
+ * says where the last boot stopped and why, USB and the installer run, no audio, no app. HOME held at power-on does
+ * the same. PLAY there tries AMEN OS again. Only a SAFE MODE that fails too drops to UBOOT (the chip's own update). */
 #include <stdint.h>
 #define FELUCCA_CDC 1
 #define FELUCCA_OTA 1
@@ -52,8 +56,8 @@ static void plat_input(plat_in_t *in)
 static void plat_led(uint32_t id, int on) { fm1_led_key(id < NBTN ? BTN_ID[id] : id, on); }
 
 /* ------------------------------------------------------------------------------------------- the screen --- */
-static uint8_t lcd_arg[4];
-static uint16_t lcd_tx[240 * 16];
+static uint8_t lcd_arg[4] __attribute__((aligned(4)));
+static uint16_t lcd_tx[240 * 16] __attribute__((aligned(4)));
 static void lcd_cmd(uint8_t c, const uint8_t *d, uint32_t n)
 {
     uint32_t i;
@@ -119,39 +123,83 @@ static void lcd_fill(uint32_t y, uint32_t h, uint16_t c)   /* (the update's bar,
     }
 }
 
+/* ------------------------------------------------------------------------------------- the boot record --- */
+/* .noinit: survives a reset (not a power-off), so the boot after a crash or a watchdog reset can say what happened */
+enum { BS_START = 1, BS_SCREEN, BS_INPUT, BS_USB, BS_IRQ, BS_PROJECT, BS_AUDIO, BS_LOOP, BS_HEALTHY, BS_SAFE };
+static struct {
+    uint32_t magic, pending, failed;            /* the boot guard: boots that never reached BS_HEALTHY in a row */
+    uint32_t stage, last_stage;                 /* how far this boot got; the boot before's */
+    uint32_t in_audio, in_ui;                   /* inside the audio ISR / a UI frame (when a reset came) */
+    uint32_t halves, frames, max_us, sheds;     /* this run's audio halves, UI frames, worst half, voices shed */
+    uint32_t last[6];                           /* the boot before's: in_audio, in_ui, halves, frames, max_us, sheds */
+    uint32_t crash_seen;                        /* fm1_crash.count when last looked at */
+} guard __attribute__((section(".noinit")));
+#define GUARD_MAGIC 0x414D4E48u
+
 /* -------------------------------------------------------------------------------------------- the audio --- */
 #define HALF_FRAMES 128u
 #define HALF_WORDS (HALF_FRAMES * 2u)
+#define HALF_US (HALF_FRAMES * 1000000u / 44100u)   /* 2902 us */
 static int32_t abuf[2u * HALF_WORDS] __attribute__((aligned(4)));
-static volatile uint32_t audio_max_us;
+static volatile uint32_t audio_max_us, audio_rest;
+static uint32_t audio_late;
 void fm1_alnk0_irq(void)
 {
-    uint8_t p = fm1_audio_pending();
+    uint8_t p;
+    guard.in_audio = 1;                         /* first: TIMER5 nests from here on, and leaves USB alone */
+    p = fm1_audio_pending();
     fm1_audio_ack_aux(p);
     if (p & FM1_AUDIO_HALF) {
         uint32_t half = fm1_audio_free_half(), i, t0 = fm1_ticks(), us;
         int32_t *o = &abuf[half * HALF_WORDS];
-        app_audio(o, HALF_FRAMES);
-        for (i = 0; i < HALF_WORDS; i++)
-            o[i] *= 1 << 7;                     /* Q15 -> 24 bit, -6 dBFS ceiling (as Felucca) */
+        if (audio_rest) {                       /* overloaded: silence for a while, the rest of the FM-1 keeps going */
+            audio_rest--;
+            for (i = 0; i < HALF_WORDS; i++)
+                o[i] = 0;
+        } else {
+            app_audio(o, HALF_FRAMES);
+            for (i = 0; i < HALF_WORDS; i++)
+                o[i] *= 1 << 7;                 /* Q15 -> 24 bit, -6 dBFS ceiling (as Felucca) */
+        }
         fm1_audio_ack_half();
         us = (fm1_ticks() - t0) / FM1_TICKS_PER_US;
         if (us > audio_max_us)
             audio_max_us = us;
+        if (us > guard.max_us)
+            guard.max_us = us;
+        guard.halves++;
+        if (us > HALF_US * 85u / 100u) {        /* late: a voice goes; late on and on: a rest */
+            audio_shed();
+            guard.sheds++;
+            if (++audio_late >= 16u) {
+                audio_late = 0;
+                audio_rest = 600;               /* ~1.7 s */
+            }
+        } else if (audio_late) {
+            audio_late--;
+        }
     }
+    guard.in_audio = 0;
 }
 extern void isr_alnk0(void);
+static void audio_start(void)
+{
+    uint32_t i;
+    for (i = 0; i < 2u * HALF_WORDS; i++)
+        abuf[i] = 0;
+    fm1_audio_init(abuf, HALF_WORDS, isr_alnk0, 3);
+}
 static uint32_t plat_cpu(void)                  /* the worst half lately, % of its 2.9 ms; it decays */
 {
     uint32_t us = audio_max_us;
     audio_max_us = us - us / 8u;
-    return us * 100u / (HALF_FRAMES * 1000000u / 44100u);
+    return us * 100u / HALF_US;
 }
 
 /* ----------------------------------------------------------------------------------- input, USB, the ms --- */
 void fm1_timer5_irq(void)                       /* 10 kHz: the key scan, ms, USB at 2 kHz */
 {
-    static uint32_t sub, last, acc;
+    static uint32_t sub, last, acc, owed;
     uint32_t t = fm1_ticks();
     fm1_timer5_ack();
     fm1_input_tick();
@@ -163,6 +211,10 @@ void fm1_timer5_irq(void)                       /* 10 kHz: the key scan, ms, USB
     }
     if (++sub == 5u) {
         sub = 0;
+        owed = 1;
+    }
+    if (owed && !guard.in_audio) {              /* never nested in the audio ISR (as Felucca: usb_poll is deferred) */
+        owed = 0;
         usb_poll();
     }
 }
@@ -267,7 +319,6 @@ static int plat_store_save(const void *p, uint32_t n)
 }
 
 /* --------------------------------------------------------------------------------------- the update path --- */
-static struct { uint32_t magic, pending, failed; } guard __attribute__((section(".noinit")));
 static uint32_t ota_now_ms(void) { return fm1_ms; }
 static void ota_idle(void) { fm1_wdt_feed(); }
 static int ota_in_area(uint32_t off, uint32_t n) { return FL_IN(off, n, OTA_AREA, OTA_AREA + OTA_AREA_LEN); }
@@ -304,7 +355,7 @@ static void uboot(void)
     fm1_delay_ms(30);
     fm1_enter_uboot();
 }
-static void fm1_fault(const fm1_crash_t *c)
+static void fm1_fault(const fm1_crash_t *c)    /* red, then a reset: the next boot is the SAFE MODE, with the record */
 {
     (void)c;
     fm1_audio_stop();
@@ -314,11 +365,101 @@ static void fm1_fault(const fm1_crash_t *c)
 }
 
 #include "amen.c"
+#include "safe.c"
+
+
+/* ---------------------------------------------------------------------------- the boot stages, SAFE MODE --- */
+static uint32_t crash_new, rst_p3;              /* a crash since the boot before; the reset's cause (P3_RST_SRC) */
+static void stage(uint32_t s)                    /* this boot got to s: a cell of the strip at the bottom, then on */
+{
+    guard.stage = s;
+    if (s >= BS_SCREEN && s < BS_PROJECT) {
+        uint32_t i;
+        for (i = 0; i < 240u * 4u; i++)
+            lcd_tx[i] = 0xE0FF;                   /* (yellow-green, bytes swapped) */
+        lcd_window(8u + (s - BS_SCREEN) * 20u, 232, 16, 4);
+        fm1_lcd_send_data(lcd_tx, 16u * 4u * 2u);
+        fm1_lcd_wait();
+        fm1_lcd_deselect();
+    }
+}
+
+static void safe_show(int forced)
+{
+    safe_info_t si;
+    memset(&si, 0, sizeof si);
+    si.forced = forced;
+    si.stage = guard.last_stage;
+    si.crash = crash_new;
+    si.watchdog = (rst_p3 & 4u) != 0;
+    si.pc = fm1_crash.pc;
+    si.vec = fm1_crash.vec;
+    si.rets = fm1_crash.rets;
+    si.dbg = fm1_crash.dbg;
+    si.emu = fm1_crash.emu;
+    si.in_audio = guard.last[0];
+    si.in_ui = guard.last[1];
+    si.halves = guard.last[2];
+    si.frames = guard.last[3];
+    si.worst_pct = guard.last[4] * 100u / HALF_US;
+    si.sheds = guard.last[5];
+    safe_draw(&si);
+}
+
+static void service(uint32_t now, uint32_t *both_t0)   /* USB, the installer, UBOOT: in both modes */
+{
+    fm1_wdt_feed();
+    usb_retry(now);
+    if (usb.uboot_req)                           /* the SysEx soft key */
+        uboot();
+    ota_service();                               /* the installer's handshake, then its update */
+    {   /* OCT- and OCT+ held 5 s: UBOOT (an update, a way back) */
+        uint32_t both = (1u << BTN_ID[B_OCTDN]) | (1u << BTN_ID[B_OCTUP]);
+        if ((fm1_in.buttons & both) != both) *both_t0 = now;
+        else if (now - *both_t0 > 5000u) uboot();
+    }
+    while (ci_r != ci_w)                          /* (the USB serial: nothing to say yet) */
+        ci_r++;
+}
+
+static void safe_mode(int forced)
+{
+    uint32_t both_t0 = fm1_ms, t0 = fm1_ms, play_t0 = 0, i;
+    fm1_audio_stop();
+    stage(BS_SAFE);
+    safe_show(forced);
+    for (i = 0; i < 41u; i++)
+        fm1_led_key(i, 0);
+    fm1_led_key(BTN_ID[B_PLAY], 1);
+    for (;;) {
+        uint32_t now = fm1_ms;
+        service(now, &both_t0);
+        if (usb.ota_req) {
+            usb.ota_req = 0;
+            if (flash_ok)
+                ota_session();                   /* returns only if nothing was committed */
+            safe_show(forced);
+        }
+        if (guard.pending && now - t0 > 3000u)   /* the SAFE MODE runs; a crash from here on counts again */
+            guard.pending = 0;
+        if (fm1_in.buttons & (1u << BTN_ID[B_PLAY])) {
+            if (!play_t0)
+                play_t0 = now | 1u;
+        } else if (play_t0) {                    /* PLAY let go: AMEN OS again */
+            guard.pending = 0;
+            guard.failed = 0;
+            usb_detach();
+            fm1_delay_ms(30);
+            fm1_reboot();
+        }
+    }
+}
 
 /* --------------------------------------------------------------------------------------------- the loop --- */
 static void app_main(void)
 {
-    uint32_t last_pot = 0, last_frame = 0, both_t0 = 0;
+    uint32_t last_pot = 0, last_frame = 0, both_t0 = 0, t_loop;
+    int safe = guard.failed != 0;               /* the boot before never got going */
     {
         uint32_t f = irq_save();
         flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;   /* the 1 MiB part every FM-1 has */
@@ -326,7 +467,9 @@ static void app_main(void)
         if (flash_ok)
             ota_boot_cleanup();
     }
-    lcd_init();
+    lcd_init();                                  /* (the backlight is on from here) */
+    lcd_fill(0, 240, 0x0000);
+    stage(BS_SCREEN);
     fm1_input_init();
     fm1_adc_init();
     (void)fm1_adc_read(FM1_ADC_MASTER);
@@ -334,39 +477,41 @@ static void app_main(void)
         int32_t a = fm1_adc_read(FM1_ADC_MASTER);
         if (a >= 0) pot = (uint16_t)a;
     }
-    app_init();                                  /* the splash; the project from the flash */
-    fm1_audio_init(abuf, HALF_WORDS, isr_alnk0, 3);
+    stage(BS_INPUT);
+    if (!safe) {                                 /* as Felucca: the app and the audio before the timers */
+        stage(BS_PROJECT);
+        app_init();                              /* the splash; the project from the flash */
+        stage(BS_AUDIO);
+        audio_start();
+    }
     usb_start();
     fm1_timer5_start(isr_timer5, 4);             /* above the audio: the scan nests into the render */
+    stage(BS_USB);
     fm1_guard_lock_top();
     fm1_irq_enable_all();
-    fm1_lcd_backlight(1);
+    if (safe)
+        stage(BS_IRQ);
+    fm1_delay_ms(40);
+    if (safe || (fm1_in.buttons & (1u << BTN_ID[B_HOME])))
+        safe_mode(!safe);
+    stage(BS_LOOP);
+    t_loop = fm1_ms;
     for (;;) {
         uint32_t now = fm1_ms;
-        fm1_wdt_feed();
-        usb_retry(now);
-        if (usb.uboot_req)                       /* the SysEx soft key */
-            uboot();
-        ota_service();                           /* the installer's handshake, then its update */
+        service(now, &both_t0);
         if (usb.ota_req) {
             usb.ota_req = 0;
             if (flash_ok) {
                 fm1_audio_stop();
                 ota_session();                   /* returns only if nothing was committed */
-                fm1_audio_init(abuf, HALF_WORDS, isr_alnk0, 3);
+                audio_start();
             }
         }
-        if (guard.pending && now > 3000u) {      /* it runs: the next boot is not a loop */
-            guard.pending = 0;
+        if (guard.pending && now - t_loop > 5000u && guard.frames > 100u && guard.halves > 1000u) {
+            guard.pending = 0;                   /* it runs: the next boot is not a SAFE MODE */
             guard.failed = 0;
+            stage(BS_HEALTHY);
         }
-        {   /* OCT- and OCT+ held 5 s: UBOOT (an update, a way back) */
-            uint32_t both = (1u << BTN_ID[B_OCTDN]) | (1u << BTN_ID[B_OCTUP]);
-            if ((fm1_in.buttons & both) != both) both_t0 = now;
-            else if (now - both_t0 > 5000u) uboot();
-        }
-        while (ci_r != ci_w)                      /* (the USB serial: nothing to say yet) */
-            ci_r++;
         if (now - last_pot >= 40u) {
             int32_t a = fm1_adc_read(FM1_ADC_MASTER);
             last_pot = now;
@@ -374,29 +519,47 @@ static void app_main(void)
         }
         if (now - last_frame >= 20u) {           /* ~50 frames a second at most */
             last_frame = now;
+            guard.in_ui = 1;
             app_frame();
+            guard.in_ui = 0;
+            guard.frames++;
         }
     }
 }
 
 void fm1_cstart(void)
 {
-    uint32_t *s, *d;
+    uint32_t *s, *d, p3, src, wdt;
     fm1_time_init();
+    fm1_reset_reason();                          /* (fm1_boot is in .bss: kept across its clearing below) */
+    p3 = fm1_boot.p3_rst;
+    src = fm1_boot.rst_src;
+    wdt = fm1_boot.wdt_con;
     fm1_wdt_arm(0x0D);
-    if (guard.magic != 0x414D4E47u) {
-        guard.magic = 0x414D4E47u;
-        guard.failed = 0;
-        guard.pending = 0;
+    if (guard.magic != GUARD_MAGIC) {            /* a power-on: a clean record */
+        uint32_t *g = (uint32_t *)&guard;
+        for (d = g; d < g + sizeof guard / 4u; d++)
+            *d = 0;
+        guard.magic = GUARD_MAGIC;
     }
     if (guard.pending)
         guard.failed++;
     guard.pending = 1;
-    if (guard.failed >= 2u) {                    /* two boots that never got going: UBOOT, so it can be replaced */
+    if (guard.failed >= 3u) {                    /* the SAFE MODE failed as well: UBOOT, so it can be replaced */
         guard.failed = 0;
         guard.pending = 0;
         fm1_enter_uboot();
     }
+    guard.last_stage = guard.stage;              /* the boot before's breadcrumbs */
+    guard.last[0] = guard.in_audio;
+    guard.last[1] = guard.in_ui;
+    guard.last[2] = guard.halves;
+    guard.last[3] = guard.frames;
+    guard.last[4] = guard.max_us;
+    guard.last[5] = guard.sheds;
+    guard.stage = BS_START;
+    guard.in_audio = guard.in_ui = 0;
+    guard.halves = guard.frames = guard.max_us = guard.sheds = 0;
     fm1_irq_init();
     for (d = _bss_start; d < _bss_end; d++)
         *d = 0;
@@ -404,7 +567,15 @@ void fm1_cstart(void)
         *d = *s;
     for (s = _rt_load, d = _rt_start; d < _rt_end; s++, d++)
         *d = *s;
+    fm1_mailbox_clear();
     fm1_guard_enable(FM1_GUARD_STACK | FM1_GUARD_WRITE | FM1_GUARD_BUS | FM1_GUARD_PC);
+    fm1_boot.p3_rst = (uint8_t)p3;
+    fm1_boot.rst_src = src;
+    fm1_boot.wdt_con = (uint8_t)wdt;
+    rst_p3 = p3;
+    crash_new = fm1_crash.magic == FM1_CRASH_MAGIC && fm1_crash.count != guard.crash_seen;
+    if (fm1_crash.magic == FM1_CRASH_MAGIC)
+        guard.crash_seen = fm1_crash.count;
     app_main();
     for (;;)
         ;

@@ -188,8 +188,17 @@
     <div class="status" id="st0" role="status" aria-live="polite"></div>
   </section>
 
+  <section class="frame" id="ostest" hidden>
+    <h2><span class="num">!!</span> ТЕСТ: AMEN OS <span class="tag">НЕ ПРОВЕРЕНА НА ЖЕЛЕЗЕ</span></h2>
+    <div class="warnbox">
+      <p>Это тестовая сборка собственной прошивки AMEN OS. Прошлая версия (0.2) не запускалась. В этой: если запуск не удался, следующий запуск — <b>SAFE MODE</b>: розовый экран с причиной и местом сбоя, USB и этот установщик работают, можно прошить заново или вернуть AMEN 0.1 с <a href="./">обычной страницы</a>. HOME при включении — тоже SAFE MODE, PLAY там — ещё одна попытка.</p>
+      <p>Только если не запустится и SAFE MODE, FM-1 уйдёт в режим обновления чипа (WL80UBOOT) — восстановление в инструкции ниже.</p>
+      <p>Если увидите SAFE MODE, сфотографируйте экран и пришлите фото: там написано, что сломалось.</p>
+    </div>
+  </section>
+
   <section class="frame" id="s1">
-    <h2><span class="num">01</span> ПРОШИВКА AMEN <span class="tag">BETA</span></h2>
+    <h2><span class="num">01</span> ПРОШИВКА <span id="fwname">AMEN</span> <span class="tag">BETA</span></h2>
     <p>Прошивка <b>AMEN <span id="fwver">…</span></b> для jungle, drum &amp; bass и breakcore. Движки встроены в неё: после установки FM-1 сразу стартует на 170 BPM с нарезанным брейком, вторым брейком для эдитов, reese-басом и драм-китом.</p>
     <div class="cards">
       <div class="card">
@@ -207,7 +216,7 @@
     </div>
     <label class="check"><input type="checkbox" id="fwok"> <span>Я понимаю, что это бета-версия сторонней прошивки и я ставлю её на свой риск. Вернуть заводскую V15 можно через M-UPGRADE от M-VAVE или <a href="https://hugelton.github.io/Felucca/" target="_blank" rel="noopener">установщик Felucca</a>.</span></label>
     <div class="row">
-      <button class="btn pink" id="fwgo" disabled>ПРОШИТЬ AMEN</button>
+      <button class="btn pink" id="fwgo" disabled>ПРОШИТЬ <span id="fwname2">AMEN</span></button>
     </div>
     <div class="bar pinkbar" id="fwbar" aria-hidden="true"></div>
     <div class="status" id="st1" role="status" aria-live="polite"></div>

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Assembles the installer site (GitHub Pages) in build/site:
 #   site/                 the page, its script, Felucca's WebMIDI updater (site/vendor/)
-#   firmware/             the AMEN firmware (build/amen: tools/build_amen.sh first), amen.json, the licences of the
+#   firmware/             AMEN OS's test build (build/os, if built: tools/build_os.sh; offered only by ?fw=os), the AMEN firmware (build/amen: tools/build_amen.sh first), amen.json, the licences of the
 #                         package (fw/LICENSE, LICENSING.md, LICENSES/) and the source of this commit (amen-source.tar.gz)
 #   demo.mp3
 set -e
@@ -14,6 +14,9 @@ mkdir -p "$out/firmware"
 cp -R "$here/site/." "$out/"
 cp "$here/docs/demo.mp3" "$out/demo.mp3"
 cp "$here"/build/amen/*.fwsc "$here/build/amen/amen.json" "$out/firmware/"
+if [ -f "$here/build/os/amen-os.json" ]; then   # AMEN OS, the test build: only the page's ?fw=os offers it
+    cp "$here"/build/os/*.fwsc "$here/build/os/amen-os.json" "$out/firmware/"
+fi
 cp "$here/fw/LICENSE" "$here/fw/LICENSING.md" "$out/firmware/"
 cp -R "$here/fw/LICENSES" "$out/firmware/"
 git -C "$here" archive --format=tar.gz --prefix=amen-fm1/ -o "$out/firmware/amen-source.tar.gz" HEAD

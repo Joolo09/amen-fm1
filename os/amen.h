@@ -49,4 +49,5 @@ static uint32_t plat_cpu(void);                      /* the audio's load, % of i
 static void app_init(void);
 static void app_audio(int32_t *out, uint32_t n);     /* audio ISR: n stereo frames (a multiple of CTL), Q15 */
 static void app_frame(void);                         /* main loop: input, the screen, the LEDs */
+static void audio_shed(void);                        /* audio ISR, when late: the oldest voice goes */
 #endif

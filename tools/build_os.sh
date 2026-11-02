@@ -6,10 +6,10 @@
 #                          files of the JieLi AC79 SDK (Apache-2.0)
 #   amen-os.json           version, identity, SHA-256 (the installer site)
 # Needs JIELI_TOOLCHAIN (the JieLi Linux toolchain) and AC79_SDK (the JieLi AC79 SDK checkout).
-#   sh tools/build_os.sh 0.2
+#   sh tools/build_os.sh 0.3
 set -e
 here=$(cd "$(dirname "$0")/.." && pwd)
-ver=${1:-0.2}
+ver=${1:-0.3}
 tc=${JIELI_TOOLCHAIN:?JIELI_TOOLCHAIN must point at the JieLi Linux toolchain}
 bsp=$here/fw/firmware/bsp
 out=$here/build/os
@@ -23,7 +23,7 @@ $CC -c "$bsp/chip/fm1_isr.S" -o "$out/isr.o"
 $CC -Os -ffunction-sections -fno-builtin -Wall -Wno-unused-function "-DAMEN_ID=\"$product\"" "-DAMEN_VERSION=\"$ver\"" \
     -I"$bsp/chip" -I"$bsp/boards/fm1" -I"$out" -I"$here/sdk/src" -I"$here/engines" -I"$here/os" \
     -c "$here/os/fm1/main.c" -o "$out/main.o"
-"$tc/pi32v2/bin/ld" --gc-sections -T "$here/os/fm1/app.ld" "$out/crt0.o" "$out/vec.o" "$out/isr.o" "$out/main.o" \
+"$tc/pi32v2/bin/ld" -T "$here/os/fm1/app.ld" "$out/crt0.o" "$out/vec.o" "$out/isr.o" "$out/main.o" \
     -o "$out/amen-os.elf"
 "$tc/common/bin/objcopy" -O binary -j .text "$out/amen-os.elf" "$out/text.bin"
 "$tc/common/bin/objcopy" -O binary -j .data "$out/amen-os.elf" "$out/data.bin"
@@ -46,6 +46,16 @@ for at, part in sorted([(rt_load, open(f"{out}/rt.bin", "rb").read()), (load, op
 img += b"\xff" * (-len(img) % 4)
 assert len(img) <= 0x8DFBC, f"app {len(img)} B over the app slot"
 open(f"{out}/amen-os.bin", "wb").write(img)
+# every allocated section where app.ld puts it: XIP code, RAMTEXT, RAM, NOINIT (an orphan elsewhere would fault)
+regions = [(0x02000120, 0x02000120 + 0x8DFBC), (0x01C00000, 0x01C06000), (0x01C08000, 0x01C08000 + 96 * 1024),
+           (0x01C7C000, 0x01C7C000 + 0x3D50)]
+print(open(f"{out}/sections.txt").read())
+for m in re.finditer(r"^\s*\d+\s+(\S+)\s+([0-9a-f]+)\s+([0-9a-f]+)\s+[0-9a-f]+.*\n\s*(.*)$", open(f"{out}/sections.txt").read(), re.M):
+    name, size, vma, flags = m.group(1), int(m.group(2), 16), int(m.group(3), 16), m.group(4)
+    if "ALLOC" in flags and size and not any(lo <= vma and vma + size <= hi for lo, hi in regions):
+        raise SystemExit(f"section {name} at {vma:#x} (+{size}) outside the memory map")
+for n in ("fm1_cstart", "fm1_alnk0_irq", "fm1_timer5_irq", "isr_alnk0", "isr_timer5", "_etext"):
+    print(f"{n:16s} {sym(n):#010x}")
 ram = sym("_bss_end") - sym("_data_start")
 print(f"amen-os.bin: {len(img)} B; RAM .data+.bss {ram} B of {96 * 1024}")
 assert ram <= 96 * 1024 - 2048, "RAM over budget"
