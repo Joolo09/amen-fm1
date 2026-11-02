@@ -1,0 +1,53 @@
+# Builds and tests AMEN-FM1 on every push: the desktop tests and demo, then the FM-1 plugin blobs (.fep) with
+# JieLi's Linux toolchain. The .fep files, the demo and the desktop plugins are uploaded as the run's artifacts.
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Desktop tests
+        run: make test
+
+      - name: Demo and desktop plugins
+        run: make demo breaks plugins
+
+      - name: JieLi toolchain (clang 4.0.1 for pi32v2)
+        id: tc
+        run: |
+          set -e
+          mkdir -p "$HOME/.jieli"
+          curl -fL --retry 3 https://pkgman.jieliapp.com/s/linux-toolchain | tar -xJ -C "$HOME/.jieli"
+          tc=$(ls -d "$HOME"/.jieli/jieli-linux-toolchains-* | sort | tail -1)
+          ln -sfn "$tc" "$HOME/.jieli/toolchain"
+          echo "toolchain: $(basename "$tc")"
+          "$HOME/.jieli/toolchain/pi32v2/bin/clang" --version | head -1
+
+      - name: FM-1 plugins (.fep)
+        run: |
+          sh tools/build_fm1.sh
+          ls -la build/fm1/*.fep
+          for f in build/fm1/*.work; do
+            echo "$f: text $(stat -c %s "$f/text.bin") B, data $(stat -c %s "$f/data.bin" 2>/dev/null || echo 0) B"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: amen-fm1-fep
+          path: build/fm1/*.fep
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: amen-fm1-demo
+          path: |
+            build/demo.wav
+            build/break*.wav
+            build/plugins/*.so
