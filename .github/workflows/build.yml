@@ -39,6 +39,36 @@ jobs:
           sh tools/build_fm1.sh
           ls -la build/fm1/*.fep
 
+      - name: JieLi AC79 SDK (three files go into the firmware package)
+        run: |
+          set -e
+          sudo apt-get install -y -q libraqm0 libfribidi0 >/dev/null
+          pip install -q Pillow
+          git clone -q --depth 1 --filter=blob:none --sparse --branch AC79NN_SDK_V1.2.1_2023-12-13 \
+            https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$HOME/fw-AC79_AIoT_SDK"
+          git -C "$HOME/fw-AC79_AIoT_SDK" sparse-checkout set cpu/wl82/tools
+          ls -la "$HOME/fw-AC79_AIoT_SDK/cpu/wl82/tools/uboot.boot" "$HOME/fw-AC79_AIoT_SDK/cpu/wl82/tools/cfg_tool.bin"
+
+      - name: AMEN firmware
+        env:
+          JIELI_TOOLCHAIN: /home/runner/.jieli/toolchain
+          AC79_SDK: /home/runner/fw-AC79_AIoT_SDK
+        run: sh tools/build_amen.sh 0.1
+
+      - name: Felucca's host tests on the AMEN sources
+        continue-on-error: true
+        env:
+          AC79_SDK: /home/runner/fw-AC79_AIoT_SDK
+        run: cd fw && sh tests/run_tests.sh 2>&1 | tail -150
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: amen-firmware
+          path: |
+            build/amen/*.fwsc
+            build/amen/*.bin
+            build/amen/amen.json
+
       - name: Installer site
         run: sh tools/build_site.sh
 
