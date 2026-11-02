@@ -456,9 +456,9 @@ static void test_params(const engine_t *e)
         for (v = e->edit[k].min; v <= e->edit[k].max; v++) {
             run_t r;
             pr.e[k] = (int8_t)v;
-            r = run(e, &pr, NOTES, 4, 60, 20, 9000);
+            r = run(e, &pr, NOTES, 4, 60, 20, 4000);
             CHECK(r.peak < 4 * VOICE_FS, "%s %s=%d: too loud (%d)", e->name, e->edit[k].label, v, r.peak);
-            CHECK(r.blocks_to_silence < 8600, "%s %s=%d: stuck (%u blocks)", e->name, e->edit[k].label, v,
+            CHECK(r.blocks_to_silence < 2900, "%s %s=%d: stuck (%u blocks)", e->name, e->edit[k].label, v,
                   r.blocks_to_silence);
         }
     }
@@ -614,7 +614,7 @@ static void test_pitch(void)
 static int tests(void)
 {
     printf("presets:\n");
-    test_presets(&ENG_JUNGLE, 5600);
+    test_presets(&ENG_JUNGLE, 1800);   /* 0.9 s of break time; PTCH -5 (GABBER) stretches it to ~1.2 s */
     test_presets(&ENG_REESE, 400);
     printf("parameters, chokes, gates, reverse, slices, pitch\n");
     test_params(&ENG_JUNGLE);

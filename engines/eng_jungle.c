@@ -21,7 +21,8 @@
  *          170 BPM long (x DECAY, / the PITCH speed), so it fits the step it is played on.
  *   CRUSH  drive into a soft clip, a lower sample rate (sample-and-hold, down to ~5.5 kHz) and fewer bits (down to 5):
  *          SP-1200 / early Akai grit at mid settings, broken digital at the top.
- *   DECAY  every hit's length, 0.25x .. 2.2x (a slice lasts at most 3 s, fading out over its last 46 ms).   TONE  a low-pass over the slice (127 = open).
+ *   DECAY  every hit's length, 0.25x .. 2.2x (a slice lasts at most ~0.9 s of break time, fading out over its last
+ *          46 ms: a ride or crash rings no longer, and the part's voices free soon).   TONE  a low-pass over the slice (127 = open).
  *
  * The engine renders its own envelopes (ownenv): a slice ends when its hits have died away (done()), or when it
  * is choked. Velocity sets its level; accented eighths (the even steps) play their hats and rides louder.
@@ -47,7 +48,7 @@ enum { JNG_POLY, JNG_CHOKE, JNG_GATE };
 #define JNG_OFF_SHIFT 10
 #define JNG_TAIL_SHIFT 12
 #define JNG_LEN_SHIFT 19             /* the length in blocks of 32 samples */
-#define JNG_LEN_MAX 131072u          /* a slice lasts at most ~3 s */
+#define JNG_LEN_MAX 40000u           /* a slice lasts at most ~0.9 s of break time (a voice frees soon) */
 #define JNG_TAIL_BACK 3u             /* tails come from up to three sixteenths back */
 #define JNG_FADE 2048u               /* a forward slice fades out over its last 46 ms */
 #define JNG_SIXTEENTH 3891u          /* a sixteenth of break time: 170 BPM at PTCH 0 */

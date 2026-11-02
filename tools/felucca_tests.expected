@@ -1,0 +1,13 @@
+FUNN -> FUNN: engine bytes kept (WHEEL N, ANALOG N, TRIO N)  FAIL
+MOD MATRIX TEST FAILED
+PROJECT FORMAT TEST FAILED
+UI TEST FAILED
+mod: DST names: EN..EN by the engine's labels                                   FAIL
+mod: MODW -> EN -N: half its range down (TRIO INTN -N..N: -N)               FAIL
+tests/foldN_test.c:N:N: error: unknown type name ‘pd_t’; did you mean ‘id_t’?
+tests/foldN_test.c:N:N: error: ‘ENG_PHASE’ undeclared (first use in this function); did you mean ‘ENGI_PHASE’?
+tests/foldN_test.c:N:N: error: ‘PD_FOLD_GN’ undeclared (first use in this function)
+ui: EDIT + white key n: the n-th engine shown (FMN Nnd, DRUM last), while playing; steps, LEN, SLICER stay FAIL
+ui: N FAILED
+ui: PRESETS KNOB N: the engines in order, DIGITAL skipped, back to the first   FAIL
+ui: engines shown ANALOG FMN PHASE ... NOISE SLICE DRUM ADPCM (ENGINE_ORDER); PRESETS lists them so FAIL

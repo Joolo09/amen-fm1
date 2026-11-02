@@ -24,5 +24,16 @@ fails "$out/amen.log" > "$out/amen.fails"
 fails "$out/felucca.log" > "$out/felucca.fails"
 echo "== failures in Felucca 1.9.0 itself: $(wc -l < "$out/felucca.fails")"
 sed 's/^/   /' "$out/felucca.fails" | head -40
-echo "== failures only on the AMEN sources: $(comm -23 "$out/amen.fails" "$out/felucca.fails" | wc -l)"
-comm -23 "$out/amen.fails" "$out/felucca.fails" | sed 's/^/   /' | head -80
+comm -23 "$out/amen.fails" "$out/felucca.fails" > "$out/amen-only.fails"
+echo "== failures only on the AMEN sources: $(wc -l < "$out/amen-only.fails")"
+sed 's/^/   /' "$out/amen-only.fails" | head -80
+# expected (tools/felucca_tests.expected): the tests of PHASE and TRIO themselves (fold155, TRIO's bytes in FUN
+# projects and in the mod matrix) and of Felucca's engine order (AMEN shows JUNGLE and REESE first)
+sort -u "$here/tools/felucca_tests.expected" > "$out/expected.fails"
+comm -23 "$out/amen-only.fails" "$out/expected.fails" > "$out/unexpected.fails"
+if [ -s "$out/unexpected.fails" ]; then
+    echo "== UNEXPECTED failures on the AMEN sources:"
+    sed 's/^/   /' "$out/unexpected.fails"
+    exit 1
+fi
+echo "== no unexpected failures"
