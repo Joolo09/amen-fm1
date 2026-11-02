@@ -1,11 +1,16 @@
-# Builds and tests AMEN-FM1 on every push: the desktop tests and demo, then the FM-1 plugin blobs (.fep) with
-# JieLi's Linux toolchain. The .fep files, the demo and the desktop plugins are uploaded as the run's artifacts.
+# Builds and tests AMEN-FM1 on every push: the desktop tests and demo, the FM-1 plugin blobs (.fep) with JieLi's
+# Linux toolchain, and the installer site (site/, tested against a fake FM-1). Pushes to the default branch publish
+# the site on GitHub Pages. The .fep files, the demo and the desktop plugins are the run's artifacts.
 name: build
 
 on:
   push:
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -20,7 +25,6 @@ jobs:
         run: make demo breaks plugins
 
       - name: JieLi toolchain (clang 4.0.1 for pi32v2)
-        id: tc
         run: |
           set -e
           mkdir -p "$HOME/.jieli"
@@ -34,9 +38,15 @@ jobs:
         run: |
           sh tools/build_fm1.sh
           ls -la build/fm1/*.fep
-          for f in build/fm1/*.work; do
-            echo "$f: text $(stat -c %s "$f/text.bin") B, data $(stat -c %s "$f/data.bin" 2>/dev/null || echo 0) B"
-          done
+
+      - name: Installer site
+        run: sh tools/build_site.sh
+
+      - name: Installer site against a fake FM-1
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.48.2
+          npx playwright install --with-deps chromium
+          node tests/site/e2e.js build/site
 
       - uses: actions/upload-artifact@v4
         with:
@@ -51,3 +61,25 @@ jobs:
             build/demo.wav
             build/break*.wav
             build/plugins/*.so
+
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+        with:
+          path: build/site
+
+  pages:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - id: deploy
+        uses: actions/deploy-pages@v4

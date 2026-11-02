@@ -1,0 +1,263 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only  AMEN-FM1 installer -->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMEN-FM1 Installer</title>
+<meta name="description" content="Установка Felucca и движков JUNGLE и REESE на M-VAVE FM-1 из браузера.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Crect width='8' height='8' fill='%230b0b14'/%3E%3Crect x='1' y='2' width='6' height='4' fill='%23b6ff3b'/%3E%3Crect x='2' y='3' width='1' height='2' fill='%230b0b14'/%3E%3Crect x='5' y='3' width='1' height='2' fill='%230b0b14'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0b0b14; --panel: #15152a; --panel2: #1d1d38; --ink: #e9e9f4; --dim: #8b8bb0;
+    --acid: #b6ff3b; --pink: #ff3b8d; --cyan: #3bf0ff; --warn: #ffd23b; --red: #ff4f4f;
+    --px: 4px;
+    --head: "Press Start 2P", ui-monospace, monospace;
+    --body: "Pixelify Sans", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink); font: 18px/1.5 var(--body);
+    background-image:
+      linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+    background-size: 8px 8px;
+    image-rendering: pixelated;
+  }
+  /* scanlines */
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 10;
+    background: repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.18) 2px 4px);
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  a { color: var(--cyan); text-underline-offset: 3px; }
+  h1, h2, .btn, .tag, .chip { font-family: var(--head); font-weight: 400; }
+  h1 { font-size: clamp(20px, 6vw, 34px); margin: 0; letter-spacing: 2px; color: var(--acid);
+       text-shadow: 4px 4px 0 var(--pink); }
+  h2 { font-size: 14px; margin: 0 0 16px; letter-spacing: 1px; display: flex; gap: 12px; align-items: center; }
+  h2 .num { color: var(--bg); background: var(--acid); padding: 6px 6px 4px; }
+  p { margin: 0 0 12px; }
+  .sub { color: var(--dim); margin-top: 12px; }
+
+  /* stepped pixel frame: notched corners */
+  .frame {
+    position: relative; background: var(--panel); margin: 28px var(--px); padding: 20px;
+    box-shadow:
+      0 calc(-1 * var(--px)) 0 0 var(--ink), 0 var(--px) 0 0 var(--ink),
+      calc(-1 * var(--px)) 0 0 0 var(--ink), var(--px) 0 0 0 var(--ink),
+      0 calc(var(--px) * 3) 0 0 rgba(0,0,0,.6);
+  }
+  .frame.hot { box-shadow:
+      0 calc(-1 * var(--px)) 0 0 var(--acid), 0 var(--px) 0 0 var(--acid),
+      calc(-1 * var(--px)) 0 0 0 var(--acid), var(--px) 0 0 0 var(--acid),
+      0 calc(var(--px) * 3) 0 0 rgba(0,0,0,.6); }
+  .frame.off { opacity: .55; }
+
+  /* header */
+  header { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; margin: 8px var(--px) 8px; }
+  header svg { width: 168px; height: auto; display: block; }
+  @media (max-width: 560px) { header { grid-template-columns: 1fr; } header svg { width: 140px; } }
+
+  /* 16 steps at 170 BPM: a sixteenth is 88 ms, the bar 1.41 s */
+  .steps { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; margin: 20px var(--px) 0; }
+  .steps i { height: 12px; background: var(--panel2); animation: step 1.412s steps(1) infinite; }
+  .steps i.k { background: #2c3a14; } .steps i.s { background: #3e1630; }
+  @keyframes step { 0%, 6.25% { background: var(--acid); } 6.26%, 100% { background: var(--panel2); } }
+  .steps i.s { animation-name: stepS; } @keyframes stepS { 0%, 6.25% { background: var(--pink); } 6.26%, 100% { background: #3e1630; } }
+  .steps i.k { animation-name: stepK; } @keyframes stepK { 0%, 6.25% { background: var(--acid); } 6.26%, 100% { background: #2c3a14; } }
+  @media (prefers-reduced-motion: reduce) { .steps i { animation: none; } }
+
+  /* buttons */
+  .btn {
+    font-size: 12px; line-height: 1; color: var(--bg); background: var(--acid); border: 0; cursor: pointer;
+    padding: 14px 16px 12px; margin: 4px var(--px) 4px var(--px); position: relative;
+    box-shadow: 0 calc(-1 * var(--px)) 0 0 var(--acid), 0 var(--px) 0 0 var(--acid),
+                calc(-1 * var(--px)) 0 0 0 var(--acid), var(--px) 0 0 0 var(--acid),
+                0 calc(var(--px) * 2) 0 0 #5b8a10;
+    transition: none;
+  }
+  .btn:hover:not(:disabled) { filter: brightness(1.12); }
+  .btn:active:not(:disabled) { transform: translateY(var(--px)); box-shadow: 0 calc(-1 * var(--px)) 0 0 var(--acid), 0 var(--px) 0 0 var(--acid), calc(-1 * var(--px)) 0 0 0 var(--acid), var(--px) 0 0 0 var(--acid); }
+  .btn:focus-visible { outline: 4px dashed var(--cyan); outline-offset: 8px; }
+  .btn:disabled { cursor: not-allowed; filter: grayscale(1) brightness(.55); }
+  .btn.pink { background: var(--pink); color: #fff;
+    box-shadow: 0 calc(-1 * var(--px)) 0 0 var(--pink), 0 var(--px) 0 0 var(--pink), calc(-1 * var(--px)) 0 0 0 var(--pink), var(--px) 0 0 0 var(--pink), 0 calc(var(--px) * 2) 0 0 #8a1048; }
+  .btn.ghost { background: var(--panel2); color: var(--ink);
+    box-shadow: 0 calc(-1 * var(--px)) 0 0 var(--dim), 0 var(--px) 0 0 var(--dim), calc(-1 * var(--px)) 0 0 0 var(--dim), var(--px) 0 0 0 var(--dim), 0 calc(var(--px) * 2) 0 0 #000; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 12px; }
+
+  /* status line */
+  .status { font-family: var(--body); min-height: 1.5em; margin-top: 14px; padding-left: 20px; position: relative; }
+  .status:empty::before { display: none; }
+  .status::before { content: ""; position: absolute; left: 0; top: .45em; width: 8px; height: 8px; background: var(--dim); }
+  .status.ok { color: var(--acid); } .status.ok::before { background: var(--acid); }
+  .status.err { color: var(--red); } .status.err::before { background: var(--red); }
+  .status.busy { color: var(--warn); } .status.busy::before { background: var(--warn); animation: blink .5s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* segmented progress */
+  .bar { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; margin-top: 14px; height: 16px; }
+  .bar i { background: var(--panel2); }
+  .bar i.on { background: var(--acid); }
+  .bar.pinkbar i.on { background: var(--pink); }
+
+  .tag { display: inline-block; font-size: 9px; padding: 5px 6px 3px; background: var(--warn); color: var(--bg); vertical-align: middle; }
+  .chip { font-size: 10px; padding: 6px 8px 4px; background: var(--panel2); color: var(--dim); }
+  .chip.ok { background: var(--acid); color: var(--bg); } .chip.err { background: var(--red); color: #fff; }
+  .chip.warn { background: var(--warn); color: var(--bg); }
+
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 8px; }
+  @media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
+  .card { background: var(--panel2); padding: 16px; position: relative;
+          box-shadow: 0 -4px 0 0 var(--panel2), 0 4px 0 0 var(--panel2), -4px 0 0 0 var(--panel2), 4px 0 0 0 var(--panel2); }
+  .card h3 { font: 13px var(--head); margin: 0 0 10px; color: var(--cyan); }
+  .card p { font-size: 16px; color: var(--dim); }
+  .card .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+  label.check { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; margin-top: 14px; }
+  label.check input { appearance: none; width: 20px; height: 20px; flex: none; margin: 2px 0 0; background: var(--bg);
+                      box-shadow: inset 0 0 0 4px var(--ink); cursor: pointer; }
+  label.check input:checked { background: var(--acid); box-shadow: inset 0 0 0 4px var(--ink), inset 0 0 0 8px var(--bg); }
+  label.check input:focus-visible { outline: 4px dashed var(--cyan); outline-offset: 4px; }
+
+  .warnbox { border-left: 8px solid var(--warn); padding: 8px 12px; background: rgba(255,210,59,.08); margin: 12px 0; }
+  details { margin-top: 16px; }
+  summary { cursor: pointer; font: 11px var(--head); color: var(--dim); list-style: none; }
+  summary::before { content: "▶ "; } details[open] summary::before { content: "▼ "; }
+  pre#log { font: 14px/1.35 var(--body); color: var(--dim); background: var(--bg); padding: 12px; margin: 12px 0 0;
+            max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+  input[type=file] { font: 15px var(--body); color: var(--dim); max-width: 100%; }
+  input[type=file]::file-selector-button { font: 10px var(--head); background: var(--panel2); color: var(--ink);
+    border: 0; padding: 10px 10px 8px; margin-right: 12px; box-shadow: inset 0 0 0 3px var(--dim); cursor: pointer; }
+  .player { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; margin-top: 8px; }
+  .player .bar { margin: 0; cursor: pointer; }
+  .player .time { font: 10px var(--head); color: var(--dim); min-width: 5ch; text-align: right; }
+  ol.steps-list { padding-left: 0; list-style: none; margin: 0; counter-reset: s; }
+  ol.steps-list li { counter-increment: s; padding-left: 36px; position: relative; margin-bottom: 8px; }
+  ol.steps-list li::before { content: counter(s); position: absolute; left: 0; top: 2px; font: 10px var(--head);
+    background: var(--cyan); color: var(--bg); padding: 4px 6px 2px; }
+  footer { color: var(--dim); font-size: 15px; margin: 40px var(--px) 0; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>AMEN-FM1</h1>
+      <p class="sub">Jungle · Drum &amp; Bass · Breakcore — установка на M-VAVE FM-1 прямо из браузера.</p>
+    </div>
+    <svg viewBox="0 0 42 24" shape-rendering="crispEdges" role="img" aria-label="Пиксельный FM-1">
+      <rect x="0" y="2" width="42" height="22" fill="#e9e9f4"/>
+      <rect x="1" y="3" width="40" height="20" fill="#2a2a44"/>
+      <rect x="3" y="5" width="12" height="9" fill="#0b0b14"/>
+      <rect x="4" y="6" width="10" height="7" fill="#b6ff3b"/>
+      <rect x="5" y="8" width="1" height="3" fill="#0b0b14"/><rect x="7" y="7" width="1" height="5" fill="#0b0b14"/>
+      <rect x="9" y="9" width="1" height="2" fill="#0b0b14"/><rect x="11" y="7" width="1" height="4" fill="#0b0b14"/>
+      <rect x="18" y="6" width="3" height="3" fill="#ff3b8d"/><rect x="23" y="6" width="3" height="3" fill="#3bf0ff"/>
+      <rect x="28" y="6" width="3" height="3" fill="#ffd23b"/><rect x="33" y="6" width="3" height="3" fill="#e9e9f4"/>
+      <rect x="18" y="11" width="18" height="2" fill="#15152a"/>
+      <g fill="#e9e9f4">
+        <rect x="3" y="16" width="2" height="6"/><rect x="6" y="16" width="2" height="6"/><rect x="9" y="16" width="2" height="6"/>
+        <rect x="12" y="16" width="2" height="6"/><rect x="15" y="16" width="2" height="6"/><rect x="18" y="16" width="2" height="6"/>
+        <rect x="21" y="16" width="2" height="6"/><rect x="24" y="16" width="2" height="6"/><rect x="27" y="16" width="2" height="6"/>
+        <rect x="30" y="16" width="2" height="6"/><rect x="33" y="16" width="2" height="6"/><rect x="36" y="16" width="2" height="6"/>
+      </g>
+      <g fill="#0b0b14">
+        <rect x="5" y="16" width="1" height="3"/><rect x="8" y="16" width="1" height="3"/><rect x="14" y="16" width="1" height="3"/>
+        <rect x="17" y="16" width="1" height="3"/><rect x="20" y="16" width="1" height="3"/><rect x="26" y="16" width="1" height="3"/>
+        <rect x="29" y="16" width="1" height="3"/><rect x="35" y="16" width="1" height="3"/>
+      </g>
+      <rect x="0" y="0" width="6" height="2" fill="#ff3b8d"/>
+    </svg>
+  </header>
+
+  <div class="steps" aria-hidden="true" id="steps"></div>
+
+  <section class="frame hot" id="s0">
+    <h2><span class="num">00</span> ПОДКЛЮЧЕНИЕ</h2>
+    <p>Подключите FM-1 USB-кабелем <b>напрямую</b> к компьютеру (кабель с передачей данных, без хабов) и закройте программы, которые используют MIDI. Нужен Chrome или Edge на компьютере: браузер попросит разрешение на MIDI.</p>
+    <div class="row">
+      <button class="btn" id="connect">ПОДКЛЮЧИТЬ</button>
+      <span class="chip" id="devchip">НЕТ УСТРОЙСТВА</span>
+    </div>
+    <div class="status" id="st0" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="frame" id="s1">
+    <h2><span class="num">01</span> ПРОШИВКА FELUCCA <span class="tag">BETA</span></h2>
+    <p>Движки AMEN-FM1 — это плагины для открытой прошивки <a href="https://github.com/hugelton/Felucca" target="_blank" rel="noopener">Felucca</a>. Плагины она загружает с версии <b>1.9</b>. Этот шаг ставит <b>Felucca <span id="fwver">1.9.0</span></b>. Если она уже стоит, шаг можно пропустить.</p>
+    <div class="warnbox">
+      <p>Не отключайте кабель, пока идёт запись. Если запись прервалась, переподключите FM-1 и нажмите кнопку снова: устройство остаётся в режиме обновления, и запись продолжится.</p>
+      <p>Проекты заводской прошивки Felucca не открывает. Перед первой установкой сохраните их программой M-VAVE.</p>
+    </div>
+    <label class="check"><input type="checkbox" id="fwok"> <span>Я понимаю, что это бета-версия сторонней прошивки и я ставлю её на свой риск. Вернуть заводскую V15 можно через <a href="https://hugelton.github.io/Felucca/" target="_blank" rel="noopener">установщик Felucca</a> или M-UPGRADE от M-VAVE.</span></label>
+    <div class="row">
+      <button class="btn" id="fwgo" disabled>ПРОШИТЬ FELUCCA</button>
+    </div>
+    <div class="bar" id="fwbar" aria-hidden="true"></div>
+    <div class="status" id="st1" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="frame" id="s2">
+    <h2><span class="num">02</span> ДВИЖКИ AMEN</h2>
+    <div class="cards">
+      <div class="card">
+        <h3>JUNGLE</h3>
+        <p>Нарезанный брейк: 8 брейков × 32 слайса, питч, реверс, чок, кранч.</p>
+        <div class="meta"><span class="chip">СЛОТ 0</span><span class="chip" id="slot0">?</span></div>
+      </div>
+      <div class="card">
+        <h3>REESE</h3>
+        <p>DnB-бас: расстроенные пилы, саб, драйв, фильтр, движение.</p>
+        <div class="meta"><span class="chip">СЛОТ 1</span><span class="chip" id="slot1">?</span></div>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn pink" id="plgo" disabled>УСТАНОВИТЬ ОБА</button>
+      <button class="btn ghost" id="plinfo" disabled>ПРОВЕРИТЬ СЛОТЫ</button>
+    </div>
+    <div class="bar pinkbar" id="plbar" aria-hidden="true"></div>
+    <div class="status" id="st2" role="status" aria-live="polite"></div>
+    <details>
+      <summary>СВОЙ .FEP / ОЧИСТКА СЛОТОВ</summary>
+      <p class="sub">Можно поставить любой плагин Felucca (.fep): он сам знает, в какой слот его собрали.</p>
+      <div class="row"><input type="file" id="fepfile" accept=".fep"><button class="btn ghost" id="fepgo" disabled>УСТАНОВИТЬ ФАЙЛ</button></div>
+      <div class="row"><button class="btn ghost" id="er0" disabled>ОЧИСТИТЬ СЛОТ 0</button><button class="btn ghost" id="er1" disabled>ОЧИСТИТЬ СЛОТ 1</button></div>
+    </details>
+  </section>
+
+  <section class="frame" id="s3">
+    <h2><span class="num">03</span> ИГРАТЬ</h2>
+    <ol class="steps-list">
+      <li>Темп <b>170 BPM</b>. Трек 1 → ручка ENG → <b>JUNGLE</b>, пресет <b>AMEN</b>.</li>
+      <li>Нижняя клавиша (F3) — слайс 0, дальше по порядку. Записывайте слайсы в шаги — брейк перестраивается.</li>
+      <li>Трек 2 → <b>REESE</b>, пресет <b>REESE</b> или <b>DEEP</b>: длинные ноты, 1–2 на такт.</li>
+      <li>Ломайте: RATCH на снейровых слайсах, REV R25%, MODE GATE, CRSH 90+.</li>
+    </ol>
+    <p class="sub">Демо, отрендеренное тем же кодом на компьютере:</p>
+    <div class="player">
+      <button class="btn" id="play" aria-label="Играть демо">▶</button>
+      <div class="bar" id="pbar" role="slider" aria-label="Позиция" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"></div>
+      <span class="time" id="ptime">0:00</span>
+    </div>
+    <audio id="demo" preload="none" src="demo.mp3"></audio>
+    <p class="sub">Карты брейков и рецепты — в <a href="https://github.com/Joolo09/amen-fm1#readme" target="_blank" rel="noopener">README</a>.</p>
+  </section>
+
+  <details class="frame">
+    <summary>ЛОГ</summary>
+    <pre id="log"></pre>
+  </details>
+
+  <footer>
+    <p>AMEN-FM1: GPL-3.0, без гарантий. Прошивка <a href="https://github.com/hugelton/Felucca">Felucca</a> © Leo Kuroshita / Hügelton Instruments, GPL-3.0; в пакете есть файлы JieLi AC79 SDK (Apache-2.0): <a href="firmware/LICENSING.md">лицензии</a>, <a href="firmware/LICENSE">GPL-3.0</a>, <a href="firmware/felucca-1.9.0-source.tar.gz">исходники Felucca 1.9.0</a>, <a href="firmware/felucca-1.9.0.fwsc">пакет</a>. Исходники AMEN-FM1: <a href="https://github.com/Joolo09/amen-fm1">GitHub</a>. Код прошивки по USB взят из Felucca без изменений. M-VAVE и FM-1 — товарные знаки их владельцев; проект с ними не связан.</p>
+  </footer>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

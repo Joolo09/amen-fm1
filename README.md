@@ -19,6 +19,10 @@
 
 ## Установка
 
+**Самый простой способ — сайт-установщик: https://joolo09.github.io/amen-fm1/** (Chrome или Edge на компьютере, FM-1 по USB). Он ставит Felucca 1.9.0, потом JUNGLE и REESE, и проверяет слоты. Если запись прервалась, нажмите «Прошить» ещё раз: запись продолжится. Код сайта лежит в `site/`, собирается и публикуется GitHub Actions. Прошивку по USB делает код установщика Felucca без изменений (`site/vendor/`).
+
+Вручную:
+
 1. Поставить на FM-1 **Felucca 1.9+** (сборка с плагинами; на момент написания 1.9 в бете) через [веб-установщик](https://hugelton.github.io/Felucca/) в Chrome/Edge. Вернуться на заводскую прошивку можно через тот же установщик (Return to official V15) или M-UPGRADE от M-VAVE.
 2. Скачать готовые плагины: вкладка **Actions** репозитория → последний успешный запуск **build** → артефакт **amen-fm1-fep** (zip с `jungle.s0.fep` и `reese.s1.fep`). Или собрать самому: `make fm1` (нужен тулчейн JieLi, [docs/BUILD.md](docs/BUILD.md)).
 3. Залить их утилитой Felucca (`pip3 install mido python-rtmidi`):
