@@ -141,6 +141,12 @@ void fm1_alnk0_irq(void)
     }
 }
 extern void isr_alnk0(void);
+static uint32_t plat_cpu(void)                  /* the worst half lately, % of its 2.9 ms; it decays */
+{
+    uint32_t us = audio_max_us;
+    audio_max_us = us - us / 8u;
+    return us * 100u / (HALF_FRAMES * 1000000u / 44100u);
+}
 
 /* ----------------------------------------------------------------------------------- input, USB, the ms --- */
 void fm1_timer5_irq(void)                       /* 10 kHz: the key scan, ms, USB at 2 kHz */

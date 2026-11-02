@@ -44,6 +44,7 @@ static int plat_store_save(const void *p, uint32_t n)
     store_n = n;
     return 0;
 }
+static uint32_t plat_cpu(void) { return 0; }
 static int plat_midi_get(uint8_t m[3])
 {
     if (mq_r == mq_w) return 0;

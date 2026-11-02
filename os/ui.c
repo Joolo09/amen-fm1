@@ -462,6 +462,14 @@ static void draw_set(void)
     text_c(120, 40, b, 6, C_ACID);
     text_c(120, 90, "BPM", 2, C_MID);
     text(8, 126, AMEN_NAME " " AMEN_VERSION, 1, C_DIM);
+    {
+        static uint32_t cpu, cpu_t;
+        if (ui_now - cpu_t > 500u) { cpu = plat_cpu(); cpu_t = ui_now; }
+        am_strcpy(b, "CPU ");
+        num(b + 4, (int32_t)cpu);
+        am_strcat(b, "%");
+        text_r(232, 126, b, 1, cpu > 85u ? C_RED : C_DIM);
+    }
     text(8, 140, "SCENE", 1, C_MID);
     b[0] = (char)('A' + prj.scene);
     b[1] = 0;

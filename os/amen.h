@@ -43,6 +43,7 @@ static void plat_lcd_band(uint32_t y, uint32_t h, const uint16_t *px);   /* 240 
 static int plat_store_load(void *p, uint32_t n);     /* 0 = loaded */
 static int plat_store_save(const void *p, uint32_t n);
 static int plat_midi_get(uint8_t m[3]);              /* 1 = a short message */
+static uint32_t plat_cpu(void);                      /* the audio's load, % of its time (the worst lately) */
 
 /* the app (os/amen.c) */
 static void app_init(void);
