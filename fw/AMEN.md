@@ -28,6 +28,37 @@ BUILDING.md says). GitHub Actions builds it on every push: the package is `amen-
 - `firmware/src/ui_menu.c`: the credits start with AMEN.
 - `firmware/src/core.h`: AMEN_SETUP (1: the jungle setup; 0: Felucca's tracks and 120 BPM, for Felucca's host tests).
 
+## Sample data reads
+
+UBSan reported `eng_slice.c:134: index 8640448 out of bounds for type 'uint8_t [126244]'` (`tests/ui_render.c`, the
+SLICES page on a user slot). No position was wrong: at the report the decoder is at sample 0 of the slot's only zone.
+Felucca reads a user slot's data (flash 0xA0000..) as `SMP_DATA[off]`, `off` rebased onto SMP_DATA (`eng_sample.c`
+usr_zone), so for a user slot the index always lies past the array: the address is the slot's bytes, but indexing
+outside an array is undefined in C. SAMPLE, GRAIN and the waveform view read the same way (`sample_test` with PIANO HD
+in USR1: `eng_sample.c:141`). Felucca's main after 1.9.0 has the same code; its ASan / UBSan runs leave bounds out.
+
+- `firmware/src/eng_sample.c`: `smp_bytes()`, SMP_DATA's address through an empty asm, so no object is attached (as
+  Linux's RELOC_HIDE; `bsp/chip/fm1_cpu1_stop.h` does the same): the same load, out of the inner loops as before (x86
+  -O2: the loops no larger). `eng_sample.c` (SAMPLE), `eng_grain.c` (GRAIN), `ui_graph.c` (the waveform) and
+  `eng_slice.c` (SLICE) read through it.
+- `firmware/src/eng_slice.c`: the decoder reads only inside a zone of the material (`slc_dec`). A position no zone
+  holds (past the end, wrapped, a zone index past the zones) reads nothing and the voice ends there: forwards at
+  once, REV once the window it already decoded (its own RAM) is played out. The zones past `nseg` are cleared at a
+  scan; a decoder state enters in range (step index <= 88, zone < 16); the REV window's grid index is clamped as in
+  `slc_state_at`. `slc_dec_next` keeps its form for the scans, the SLICES page and Felucca's tests (a refused read
+  still steps, so their loops end). Valid positions play bit for bit as before: SLICE's 9 and SAMPLE's 24 demos
+  (`slice_test`, `sample_test`) are identical, AMEN_SETUP 0 and 1.
+- On the device no voice reaches a bad position in normal play: an engine switch ends the part's voices before the
+  new engine renders (`voice.c` engine_block); an upload's BEGIN empties the slot (`usr_nz` 0; WRITE refuses a slot in
+  use) and every part renders every block, muted or not, so each voice on it ends before END rescans it;
+  `smp_user_scan` runs on a valid slot only at boot. The bound guards what was never proven impossible, at no cost
+  per sample (the check is in the zone change's branch).
+- `tests/amen_slice_bounds_test.c` (new), `../tools/amen_slice_check.sh` (new, CI): ASan + UBSan (but shift: the DSP
+  shifts negative values, as Felucca's drumfuzz run) on a slot whose data end where its image ends: every slice
+  (DIV 4..AUTO, forwards and REV, ONE and LOOP across the zones), bad positions and a material replaced under a voice
+  stop; then `slice_test`, `sample_test` and `ui_render` under UBSan with bounds: no report. Felucca's suite on AMEN
+  stops at `fold155_test` (`set -e`), so `tools/felucca_tests.sh` never reached `slice_test` / `sample_test`.
+
 ## The AMEN interface (AMEN_SETUP 1)
 
 - `firmware/src/ui_amen.c` (new, included by `ui_graph.c`): the BREAK MAP (a JUNGLE track's HOME and EDIT pages: the

@@ -21,6 +21,18 @@ typedef struct {
 #if defined(SMP_PERC_SLOT) && SMP_PERC_SLOT != SMP_SET_PERC
 #error "tools/gen_samples.py PERC_SLOT != core.h SMP_SET_PERC"
 #endif
+/* AMEN: the sample data, as smp_bytes()[off]: a built-in zone's off indexes SMP_DATA; a user slot's (usr_zone, below)
+ * is rebased onto it (the slot's data in flash at 0xA0000.. minus SMP_DATA's address), so it lies past the array's
+ * end. SMP_DATA[off] there reads the slot's bytes, but it indexes outside the array, which C leaves undefined (UBSan:
+ * "index out of bounds for type 'uint8_t [N]'"). The empty asm hands back the same address with no object attached
+ * (as Linux's RELOC_HIDE; bsp/chip/fm1_cpu1_stop.h uses it too), so no compiler reasons from SMP_DATA's size. Not
+ * volatile: the same single load per byte, the base hoisted out of the loops. */
+static inline const uint8_t *smp_bytes(void)
+{
+    const uint8_t *p = SMP_DATA;
+    __asm__("" : "+r"(p));
+    return p;
+}
 
 static const int16_t IMA_STEP[89] = {
     7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97,
@@ -138,7 +150,7 @@ static inline const smp_zone_t *smp_zone(uint32_t zi)
  * index, s[2] previous sample, s[3] current sample, s[4] zone, s[5] step Q16 */
 static inline int32_t sample_next(const smp_zone_t *z, voice_t *v, int loop)
 {
-    uint32_t pos = v->ph[0], b = SMP_DATA[z->off + (pos >> 1)];
+    uint32_t pos = v->ph[0], b = smp_bytes()[z->off + (pos >> 1)];
     uint32_t code = (pos & 1u) ? (b >> 4) : (b & 15u);
     int32_t step = IMA_STEP[(uint32_t)v->s[1] <= 88u ? v->s[1] : 88], vd = step >> 3;
     if (code & 4u)

@@ -73,6 +73,9 @@ jobs:
           pip install pillow >/dev/null 2>&1 || true
           sh tools/amen_ui_check.sh v0.2
 
+      - name: AMEN's sample reads (SLICE inside its zones; slice_test, sample_test, ui_render) under ASan / UBSan
+        run: sh tools/amen_slice_check.sh v0.2
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

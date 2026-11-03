@@ -109,29 +109,36 @@ typedef struct {
 } slc_dec_t;
 static inline void slc_dec_at(slc_dec_t *d, uint32_t pos, uint32_t st)
 {
+    uint32_t idx = (st >> 16) & 127u;
     d->pos = pos;
     d->pred = (int16_t)(st & 0xFFFFu);
-    d->idx = (int32_t)((st >> 16) & 127u);
-    d->seg = st >> 24;
+    d->idx = (int32_t)(idx <= 88u ? idx : 88u);         /* AMEN: in range (IMA_STEP), the zone in seg[] */
+    d->seg = (st >> 24) & (SLC_SEGS - 1u);
 }
 static inline uint32_t slc_dec_st(const slc_dec_t *d)
 {
     return (uint32_t)(uint16_t)d->pred | (uint32_t)d->idx << 16 | d->seg << 24;
 }
-/* the sample at d->pos (< len), then the next position */
-static inline int32_t slc_dec_next(const slc_src_t *s, slc_dec_t *d)
+/* the sample at d->pos into *x, then the next position. AMEN: 0 = no zone of the material holds d->pos (its end, or
+ * a stale or bad position): nothing is read, *x = 0, d->pos still steps (every loop over positions ends); the voice
+ * ends there (slc_fwd, slc_fill). A read stays inside its zone's data: seg[] past nseg has n = 0 (slc_user_scan) */
+static inline int slc_dec(const slc_src_t *s, slc_dec_t *d, int32_t *x)
 {
     const slc_seg_t *g = &s->seg[d->seg];
     uint32_t rel = d->pos - g->at, b, code;
     int32_t step, vd;
-    if (rel >= g->n && d->seg + 1u < s->nseg) {         /* into the next zone: its data starts from 0 / 0 */
+    if (rel >= g->n) {                                  /* into the next zone: its data starts from 0 / 0 */
+        if (d->seg + 1u >= s->nseg || (rel = d->pos - g[1].at) >= g[1].n) {
+            d->pos++;
+            *x = 0;
+            return 0;
+        }
         d->seg++;
         g++;
-        rel = d->pos - g->at;
         d->pred = 0;
         d->idx = 0;
     }
-    b = SMP_DATA[g->off + (rel >> 1)];
+    b = smp_bytes()[g->off + (rel >> 1)];
     code = (rel & 1u) ? (b >> 4) : (b & 15u);
     step = IMA_STEP[d->idx];
     vd = step >> 3;
@@ -144,7 +151,15 @@ static inline int32_t slc_dec_next(const slc_src_t *s, slc_dec_t *d)
     d->pred = clamp(d->pred + ((code & 8u) ? -vd : vd), -32768, 32767);
     d->idx = clamp(d->idx + IMA_IDX[code & 7u], 0, 88);
     d->pos++;
-    return d->pred;
+    *x = d->pred;
+    return 1;
+}
+/* the sample at d->pos (0 where no zone holds it), then the next position */
+static inline int32_t slc_dec_next(const slc_src_t *s, slc_dec_t *d)
+{
+    int32_t x;
+    slc_dec(s, d, &x);
+    return x;
 }
 
 static inline uint32_t slc_gpos(const slc_src_t *s, uint32_t k) { return (k * s->len) >> SLC_GRID_LOG2; }
@@ -282,6 +297,8 @@ static void slc_user_scan(uint32_t k, int valid)
         s->seg[s->nseg++].n = z->n;
         at += z->n;
     }
+    for (i = s->nseg; i < SLC_SEGS; i++)                /* AMEN: no zone left over from earlier material */
+        s->seg[i] = (slc_seg_t){0, 0, 0};
     if (!s->nseg)
         return;
     s->rate = usr_zone[k][0].rate;
@@ -473,11 +490,13 @@ static void slice_note_on(track_t *t, voice_t *v)
 }
 
 /* the reverse window [ws, ws + n): decoded from the nearest checkpoint at or below ws (a grid point,
- * or a = the slice start with its state sa) */
-static void slc_fill(const slc_src_t *s, int16_t *rb, uint32_t ws, uint32_t n, uint32_t a, uint32_t sa)
+ * or a = the slice start with its state sa). AMEN: 0 = the window is not in the material (the voice ends) */
+static int slc_fill(const slc_src_t *s, int16_t *rb, uint32_t ws, uint32_t n, uint32_t a, uint32_t sa)
 {
     slc_dec_t d;
     uint32_t k = (ws << SLC_GRID_LOG2) / s->len, i;
+    int32_t x;
+    k = k < SLC_GRID ? k : SLC_GRID - 1u;               /* AMEN: (as slc_state_at; ws past the end: grid[] too) */
     while (k + 1u < SLC_GRID && slc_gpos(s, k + 1u) <= ws)
         k++;
     if (a <= ws && a > slc_gpos(s, k))
@@ -485,9 +504,14 @@ static void slc_fill(const slc_src_t *s, int16_t *rb, uint32_t ws, uint32_t n, u
     else
         slc_dec_at(&d, slc_gpos(s, k), s->grid[k]);
     while (d.pos < ws)
-        slc_dec_next(s, &d);
-    for (i = 0; i < n; i++)
-        rb[i] = (int16_t)slc_dec_next(s, &d);
+        if (!slc_dec(s, &d, &x))
+            return 0;
+    for (i = 0; i < n; i++) {
+        if (!slc_dec(s, &d, &x))
+            return 0;
+        rb[i] = (int16_t)x;
+    }
+    return 1;
 }
 
 /* LOOP: back to the slice's start; its end again too (MAN: a JOIN / move meanwhile changed it). Out of line: once
@@ -507,8 +531,7 @@ static inline int slc_fwd(const slc_src_t *s, voice_t *v, slc_dec_t *d, int loop
             return 0;
         slc_loop_fwd(s, v, d);
     }
-    *x = slc_dec_next(s, d);
-    return 1;
+    return slc_dec(s, d, x);                            /* (AMEN: 0 also where no zone holds d->pos: it ends) */
 }
 static inline int slc_rev(const slc_src_t *s, voice_t *v, int16_t *rb, int loop, int32_t *x)
 {
@@ -526,7 +549,8 @@ static inline int slc_rev(const slc_src_t *s, voice_t *v, int16_t *rb, int loop,
         if (q < a)                                      /* MAN: the start moved past this voice: it ends */
             return 0;
         ws = q + 1u >= a + SLC_RB ? q + 1u - SLC_RB : a;
-        slc_fill(s, rb, ws, q + 1u - ws, a, st);
+        if (!slc_fill(s, rb, ws, q + 1u - ws, a, st))
+            return 0;                                   /* AMEN: not in the material (a bad position): it ends */
         v->s[0] = (int32_t)ws;
     }
     *x = rb[q - ws];
@@ -568,7 +592,7 @@ static void slice_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     stepq = (pow2_q16(clamp(m->pitch16 - v->pitch_cur + p[P_E3] * 16, -1536, 576)) >> 8) * (s->rate >> 8);
     d.pos = v->ph[0];
     d.pred = v->s[0];
-    d.idx = v->s[1];
+    d.idx = clamp(v->s[1], 0, 88);                      /* (AMEN: as slc_dec_at) */
     d.seg = (pk >> 3) & 15u;
     if (!v->s[6]) {                                     /* prime the interpolator */
         if (!(rev ? slc_rev(s, v, rb, 0, &x) : slc_fwd(s, v, &d, 0, &x))) {
