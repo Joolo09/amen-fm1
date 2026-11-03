@@ -197,13 +197,14 @@ export class Updater {
   }
 
   // full install: running firmware -> loader -> new firmware
-  // force: the device's identity names another model (another firmware's own name): install anyway
-  async install(image, product, onStep, force = false) {
+  // only onto the model the package is for: a firmware that names another model is refused (its update format and flash
+  // layout are not known here), nothing is sent to it
+  async install(image, product, onStep) {
     const step = onStep || (() => {});
     const dev = await this.find((id) => !IS_OTA(id));
     if (!dev) throw fail("notfound", "FM-1 not found (USB cable, and no other app using it?)");
     const [model] = product.split("_");
-    if (dev.id.model !== model && !force) { dev.link.close(); throw fail("model", `the device is ${dev.id.text}, the package is for ${product}`, dev.id.text); }
+    if (dev.id.model !== model) { dev.link.close(); throw fail("model", `the device is ${dev.id.text}, the package is for ${product}`, dev.id.text); }
     step("start", dev.id.text);
     dev.link.send(UPGRADE);
     await sleep(2000);

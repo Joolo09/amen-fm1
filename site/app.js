@@ -49,9 +49,13 @@ if (OS) {
   $("ostest").hidden = false;
   $("fwname").textContent = $("fwname2").textContent = NAME;
 }
+// a firmware that names another model: the installer does not write to it (its update format and flash layout are unknown)
+const OTHER = "На такую прошивку установщик не пишет: её формат обновления и раскладка флеша не проверены, а запись вслепую " +
+  "может оставить FM-1 без загрузки. Напишите название этой прошивки (проект, версия) — совместимость проверим отдельно. " +
+  "Заводскую V15 на FM-1 можно вернуть через режим UBOOT — инструкция внизу страницы.";
 const MIDI_TEXT = {
   notfound: "FM-1 не найден. Проверьте кабель (с передачей данных), подключите напрямую, закройте другие MIDI-программы.",
-  model: "Подключено не FM-1.",
+  model: "Ничего не записано. Устройство представилось как «",
   stopped: "Устройство остановилось. Переподключите кабель и нажмите снова: если FM-1 уже в режиме обновления, запись продолжится.",
   noloader: "Режим обновления не появился. Переподключите кабель и нажмите снова: FM-1 ждёт в режиме обновления.",
   lost: "Связь по USB пропала. Переподключите кабель и нажмите снова: запись продолжится.",
@@ -136,7 +140,7 @@ function showPorts(up) {
 function describe(id) {
   if (!id) return { text: "НЕТ УСТРОЙСТВА", kind: "err" };
   if (/^ota-/i.test(id.model)) return { text: "РЕЖИМ ОБНОВЛЕНИЯ", kind: "warn", ota: true };
-  if (!/^FM-1$/i.test(id.model)) return { text: `ДРУГАЯ ПРОШИВКА (${id.text})`, kind: "warn" };
+  if (!/^FM-1$/i.test(id.model)) return { text: `ДРУГАЯ ПРОШИВКА (${id.text})`, kind: "err", other: true };
   if (FW && id.text === FW.product) return { text: `${NAME} ${FW.version}`, kind: "ok", current: true };
   if (id.version >= 700 && id.version <= 799) return { text: `AMEN OS (${id.text})`, kind: "warn" };
   if (id.version >= 900 && id.version <= 999) return { text: `FELUCCA/AMEN (${id.text})`, kind: "warn" };
@@ -159,9 +163,10 @@ $("connect").addEventListener("click", async () => {
     if (!id && named.length) say("st0", `Порт «${named[0].name}» есть, но FM-1 не отвечает на запрос обновления. Закройте другие MIDI-программы и попробуйте снова. Если на FM-1 прошивка без обновления по USB, вернуть заводскую можно только через режим UBOOT — инструкция ниже.`, "err");
     else if (!id) say("st0", MIDI_TEXT.notfound + " Выберите порт FM-1 в списке MIDI-ПОРТ и нажмите снова.", "err");
     else if (d.ota) say("st0", `FM-1 в режиме обновления: запись прервалась. Нажмите «ПРОШИТЬ ${NAME}», чтобы продолжить.`, "busy");
+    else if (d.other) say("st0", `FM-1 отвечает как «${id.text}». ` + OTHER, "err");
     else if (d.current) say("st0", `На FM-1 уже стоит ${NAME} ${FW.version}. Прошить заново можно в шаге 01.`, "ok");
     else say("st0", `Найден FM-1 (${id.text}). Дальше шаг 01.`, "ok");
-    if (id && !d.current) $("s1").classList.add("hot");
+    if (id && !d.current && !d.other) $("s1").classList.add("hot");
     log(`устройство: ${id ? id.text : "нет"}`);
   } catch (e) {
     say("st0", e.message, "err");
@@ -195,12 +200,7 @@ $("fwgo").addEventListener("click", async () => {
       log("найден режим обновления: продолжаю запись");
       if (!(await up.resume(image, step, FW.product))) throw Object.assign(new Error("stopped"), { code: "stopped" });
     } else {
-      try {
-        await up.install(image, FW.product, step);
-      } catch (e) {   // a firmware that names itself otherwise: the user's call
-        if (e.code !== "model" || !window.confirm(`Устройство называет себя «${e.detail}», а не FM-1. Если это точно M-VAVE FM-1 с другой прошивкой — нажмите OK, и ${NAME} запишется поверх неё.`)) throw e;
-        await up.install(image, FW.product, step, true);
-      }
+      await up.install(image, FW.product, step);
     }
     showPorts(up);
     say("st1", `${NAME} ${FW.version} установлена! FM-1 перезапустился — жмите PLAY.`, "ok");
@@ -209,7 +209,8 @@ $("fwgo").addEventListener("click", async () => {
     $("s1").classList.remove("hot");
     $("s3").classList.add("hot");
   } catch (e) {
-    const text = e && e.code && MIDI_TEXT[e.code] ? MIDI_TEXT[e.code] + (e.detail || "") : "Ошибка: " + (e && e.message);
+    const text = e && e.code === "model" ? MIDI_TEXT.model + e.detail + "», а не FM-1. " + OTHER
+      : e && e.code && MIDI_TEXT[e.code] ? MIDI_TEXT[e.code] + (e.detail || "") : "Ошибка: " + (e && e.message);
     say("st1", text, "err");
     log(String(e && e.stack || e));
   }

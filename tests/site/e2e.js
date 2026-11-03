@@ -88,18 +88,19 @@ const text = (p, id) => p.textContent(id);
   check(/уже стоит/.test(await text(p, "#st0")), "AMEN found: " + await text(p, "#st0"));
   await p.close();
 
-  // another firmware, its own name and Windows' port names: found by probing every port, installed after the question
+  // another firmware, its own name and Windows' port names: found by probing every port by id; nothing written to it
   p = await open(b, `{ fw: "X0X_12", inName: "MIDIIN2 (Groovebox)", outName: "MIDIOUT2 (Groovebox)" }`);
   await p.click("#connect");
   await p.waitForFunction(() => /ДРУГАЯ/.test(document.getElementById("devchip").textContent));
   check(true, "another firmware: " + await text(p, "#devchip"));
+  check(/не пишет/.test(await text(p, "#st0")), "another firmware: the page says it will not write to it");
   check(/Keystation/.test(await text(p, "#ports")) && /X0X_12/.test(await text(p, "#ports")), "the probed ports listed");
   check((await p.$$eval("#port option", (o) => o.map((x) => x.value))).includes("input-1"), "the port list has the ids");
   await p.check("#fwok");
   await p.click("#fwgo");
-  await p.waitForFunction((re) => new RegExp(re).test(document.getElementById("st1").textContent), FW_DONE.source, { timeout: 180000 });
-  const sx = await p.evaluate(() => ({ fw: window.__fm1.fw, bytes: window.__fm1.otaBytes }));
-  check(/установлена/.test(await text(p, "#st1")) && sx.fw === meta.product && sx.bytes === img.length, "over another firmware: " + await text(p, "#st1"));
+  await p.waitForFunction((re) => new RegExp(re).test(document.getElementById("st1").textContent), "Ничего не записано", { timeout: 30000 });
+  const sx = await p.evaluate(() => ({ fw: window.__fm1.fw, bytes: window.__fm1.otaBytes, reqs: window.__fm1.otaReqs, log: window.__fm1.log }));
+  check(sx.fw === "X0X_12" && sx.bytes === 0 && sx.reqs === 0 && !sx.log.length, "another firmware: no update started, nothing written");
   check(!p.errors.length, "no page errors " + p.errors.join("; "));
   await p.close();
 
