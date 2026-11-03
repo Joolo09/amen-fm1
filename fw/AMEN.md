@@ -47,3 +47,22 @@ BUILDING.md says). GitHub Actions builds it on every push: the package is `amen-
   the default.
 - `tests/ui_render.c`: AMEN's scenes (amen_*: the break map playing, the reese, CHOP, BASSLINE, the edit makers), the
   AMEN palette's PNGs, the splash's expected lines.
+
+## The 80s look (AMEN 0.2)
+
+Every screen drawn in its own style, not Felucca's:
+
+- Font: Chakra Petch (SIL OFL 1.1) in place of Inter Tight: `tools/gen_aa_font.py --preset chakra-petch`
+  (`tools/build.py` uses it), on Inter Tight's line heights (S 15, M 19, L 35: Felucca's layouts are measured on them;
+  every glyph's ink fits, the generator asserts it), 2 % tighter, no kerning inside numbers (even pitch).
+- Palette AMEN: synthwave night: deep indigo, neon magenta values, lavender-white text, cyan for the active thing,
+  sunset orange for REC (`tools/gen_ui_palettes.py`, every contrast check passed).
+- `firmware/src/gfx.c`: the cards' corners cut at 45 degrees (as Chakra Petch's), 2 px bigger; `ux.bw` (MONO).
+- `firmware/src/ui_draw.c`: the knob cards' gauges as LED meters (4 px segments); the header's neon horizon (its bottom
+  two rows, THEME to ACCENT, drawn by every header canvas, `ui_menu.c` too); the splash: a synthwave sunset drawn in
+  code (sky, stars, the cut sun, the grid), the chrome AMEN logo and an original 80s anime DJ as sprites
+  (`firmware/src/amen_art.h` from `../tools/gen_amen_art.py`, 10 KB), the styles and the version on a label; in GREY
+  and MONO all in grays. `firmware/src/main.c`: the splash shows 1.5 s.
+- `firmware/src/ui_draw.c`: the header's edited mark 1 px further from the slot letter (the wider A).
+- `tests/ui_render.c`: the splash's lines (the logo is art). `../tools/amen_ui_check.sh` (CI): every AMEN screen in
+  every palette through Felucca's renderer: 0 layout findings, GREY / MONO gray, alignment as Felucca's (532 offsets).

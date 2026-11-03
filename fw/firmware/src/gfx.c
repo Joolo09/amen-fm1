@@ -88,6 +88,7 @@ static struct {
     uint16_t bg, surf, text, theme, accent;
     uint16_t mid, dim, line, sel, tint, ink, rec, raise, key, lane, grid, ok;
     uint8_t light, mono;
+    uint8_t bw;                  /* AMEN: MONO (the splash's art in grays there, as in GREY) */
     uint8_t style;               /* MENU > STYLE (ui.c style_apply): ST_FLAT, ST_LINE */
     uint32_t gen;                /* bumped by palette_set (the text ramps follow) */
 } ux;
@@ -162,6 +163,7 @@ static void palette_set(uint32_t i)
     ux.pal[0] = p->c1; ux.pal[1] = p->c2; ux.pal[2] = p->c3; ux.pal[3] = p->primary; ux.pal[4] = p->secondary;
     ux.bg = p->c1; ux.text = p->c3; ux.theme = p->c2; ux.accent = p->secondary; ux.rec = p->primary;
     ux.mono = !cust && i == UI_GREY_INDEX;
+    ux.bw = !cust && i == UI_BW_INDEX;
     ux.mid = ux_mix(ux.bg, ux.text, UI_MID_PCT);
     ux.dim = ux_mix(ux.bg, ux.text, UI_DIM_PCT);
     ux.line = ux_mix(ux.bg, ux.text, UI_LINE_PCT);
@@ -305,7 +307,11 @@ static uint32_t rr_cov(int32_t r, int32_t i, int32_t j)
     for (sy = 0; sy < 4; sy++)
         for (sx = 0; sx < 4; sx++) {
             int32_t dx = r * 8 - ((i * 4 + sx) * 2 + 1), dy = r * 8 - ((j * 4 + sy) * 2 + 1);   /* 1/8 px */
+#if AMEN_SETUP
+            n += dx + dy <= r * 8;               /* AMEN (the 80s): the corner cut at 45 degrees, as Chakra Petch's */
+#else
             n += dx * dx + dy * dy <= r * r * 64;
+#endif
         }
     return (uint32_t)n;
 }
@@ -317,6 +323,9 @@ static void cv_rrect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, uint
     GFX_HOOK_CELL(x, y + cv_oy, x + w, y + h + cv_oy);   /* (the lint: what is drawn on it stays inside it) */
     if (r < 0) r = -r;                           /* (-r: rounded in every style: a keycap-like cushion) */
     else if (ux.style == ST_LINE) r = 0;         /* LINE: square cursors, selections and fills (FLAT: rounded) */
+#if AMEN_SETUP
+    if (r >= 4) r += 2;                          /* AMEN: the cards' cut corners a little bigger (they read as cuts) */
+#endif
     if (r > w / 2) r = w / 2;
     if (r > h / 2) r = h / 2;
     if (r < 1) {

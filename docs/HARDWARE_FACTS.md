@@ -42,9 +42,10 @@ layouts are not checked here: UNKNOWN for every one of them until read in its ow
 | Fact | Value | Confidence |
 | --- | --- | --- |
 | Hardware revision | not known | UNKNOWN |
-| Firmware installed now | "another firmware" (the owner's words, 2026-11-03); name, identity string and update path not known | UNKNOWN |
+| Firmware installed now | the site's AMEN 0.1 (Felucca-based): the owner reports it set up, 2026-11-03 ("It's set up, but it took a while"); how the "other firmware" before it was replaced was not reported | CONFIRMED (owner report; version inferred from the site) |
 | Bootloader | the chip's ROM UBOOT is present (seen); whether the installed firmware changed anything above it is not known | UNKNOWN |
 | A read-back backup of its flash | none on record | UNKNOWN |
-| Its USB-MIDI port name, and whether it answers the update identity query | the installer of 2026-11-02 did not find it ("НЕТ УСТРОЙСТВА"); the port list of the newer page not seen yet | UNKNOWN |
+| Its USB-MIDI port name, and whether it answers the update identity query | answers it (AMEN 0.1 was installed over USB-MIDI by the site); the port name not reported | CONFIRMED (inferred from the install) |
 | AMEN OS 0.2 on it | black screen, then UBOOT; recovered by the owner | CONFIRMED (owner report) |
 | AMEN OS 0.3 on it | never run | NOT RUN |
+| AMEN 0.2 (the 80s look) on it | never run: built and rendered on a computer only | NOT RUN |

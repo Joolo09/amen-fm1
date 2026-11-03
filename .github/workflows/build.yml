@@ -66,7 +66,21 @@ jobs:
         env:
           JIELI_TOOLCHAIN: /home/runner/.jieli/toolchain
           AC79_SDK: /home/runner/fw-AC79_AIoT_SDK
-        run: sh tools/build_amen.sh 0.1
+        run: sh tools/build_amen.sh 0.2
+
+      - name: AMEN's screens (the 80s look, AMEN_SETUP=1) through Felucca's renderer and layout lint
+        run: |
+          pip install pillow >/dev/null 2>&1 || true
+          sh tools/amen_ui_check.sh v0.2
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: amen-ui
+          path: |
+            build/amen-ui/sheet_AMEN.png
+            build/amen-ui/AMEN/*.png
+            build/amen-ui/report.txt
 
       - name: Felucca's host tests, AMEN against Felucca 1.9.0
         env:

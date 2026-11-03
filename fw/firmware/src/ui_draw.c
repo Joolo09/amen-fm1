@@ -161,6 +161,21 @@ static int32_t roll_text(uint32_t k, int32_t x, int32_t y, const char *s, uint16
  * test_head_centres): icons by cv_icon_mid, text by its capitals' band (CAP_IN; the odd row left over above it, as
  * everywhere): M (BPM, the song row, the octave, a message: capitals rows 6..16) from y 2, S (OCT, a key hint: rows 7..15)
  * from y 4 */
+#if AMEN_SETUP
+/* AMEN (the 80s): the header's neon horizon, its bottom two rows, THEME to ACCENT across the screen, the lower row a
+ * glow (half into BG); every header canvas draws its part (sx: the canvas's screen x) */
+static void head_strip(int32_t sx)
+{
+    int32_t x;
+    for (x = 0; x < (int32_t)cv_w; x++) {
+        uint16_t c = ux_mix(T_THEME, T_ACCENT, (sx + x) * 100 / 239);
+        cv_pset(x, H_HEAD - 2, c);
+        cv_pset(x, H_HEAD - 1, ux_mix(T_BG, c, 40));
+    }
+}
+#else
+#define head_strip(sx) ((void)0)
+#endif
 #define HEAD_SY CAP_IN(S, H_HEAD)
 #define HEAD_MY CAP_IN(M, H_HEAD)
 #define HEAD_TRK_X 4                                   /* the track cushion's cell */
@@ -356,6 +371,7 @@ static void draw_head(void)
     if (!ui.force && sig == ui.head_sig) {
         if (ui.roll[ROLL_BPM].from[0] && centre) {     /* rolling: the BPM's strip only */
             cv_begin((uint32_t)(g.sx1 - g.sx0), H_HEAD, T_BG);
+            head_strip(g.sx0);
             roll_text(ROLL_BPM, g.bx - g.sx0, HEAD_MY, b, ui.bpm_t ? T_ACCENT : T_THEME);
             cv_blit((uint32_t)g.sx0, Y_HEAD);
         }
@@ -363,6 +379,7 @@ static void draw_head(void)
             int32_t cx = g.mx0 - (g.sx0 - g.mx1);
             metro_beat = (int8_t)beat;
             cv_begin((uint32_t)(g.sx0 - cx), H_HEAD, T_BG);
+            head_strip(cx);
             head_metro(g.mx0 - cx, beat);
             cv_blit((uint32_t)cx, Y_HEAD);
         }
@@ -371,6 +388,7 @@ static void draw_head(void)
     ui.head_sig = sig;
     metro_x = -1;
     cv_begin(240, H_HEAD, T_BG);
+    head_strip(0);
     cv_icon_mid(HEAD_TRK_X, H_HEAD / 2, 16, trk_icon(song.sel, 1), midi_lit(song.sel) ? T_TEXT : T_ACCENT, T_BG);   /* (1.5.5:
                                                        * a MIDI IN note into it, #208: lit) */
     if (slot && (centre || !msg)) {                    /* the slot letter (not under a message centred: its room) */
@@ -378,7 +396,7 @@ static void draw_head(void)
         GFX_HOOK_ALIGN(0, 0, 0, H_HEAD, AL_V, "header text on its middle");
         rx = cv_text(HEAD_SLOT_X, HEAD_MY, &AF_M, l, sl[0] == '-' ? T_MID : T_THEME);
         if (sl[1])                                     /* edited since: the mark, up by the letter's top */
-            rx = cv_text(rx, HEAD_MY, &AF_M, "*", T_MID);
+            rx = cv_text(rx + 1, HEAD_MY, &AF_M, "*", T_MID);   /* (AMEN: 1 px clear of Chakra Petch's wider A) */
         rx += 1;                                       /* (the REC mark's cell after it, its ink 3 px on) */
     }
     draw_rec_mark(rx, T_BG);
@@ -763,8 +781,17 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
         }
         if (!strip && ratio >= 0) {
             int32_t gw = COL_W - 10, fx = ratio * gw / 1000;
+#if AMEN_SETUP
+            {   /* AMEN (the 80s): an LED meter, 4 px segments 1 px apart, lit up to the value (the first always) */
+                int32_t sx;
+                uint16_t on = hot ? T_ACCENT : vc == T_DIM ? T_DIM : T_THEME, off = ux.style ? T_LINE : T_BG;
+                for (sx = 0; sx + 4 <= gw; sx += 5)
+                    cv_rect(5 + sx, 38, 4, 3, sx == 0 || sx < fx ? on : off);
+            }
+#else
             cv_rrect(5, 38, gw, 3, 1, ux.style ? T_LINE : T_BG, T_SURF);   /* (LINE: no card to cut it from) */
             cv_rrect(5, 38, fx < 3 ? 3 : fx, 3, 1, hot ? T_ACCENT : vc == T_DIM ? T_DIM : T_THEME, T_BG);
+#endif
         }
     }
     cv_oy = 0;
@@ -1387,36 +1414,98 @@ static void splash_band(uint32_t y, uint32_t h, int32_t ly, const char *const *l
     cv_blit(SPL_X0, y);
 }
 #if AMEN_SETUP
-/* AMEN's splash, the whole screen: AMEN large in the theme on an accent bar, the AMEN break's first bar as its
- * transients (kicks in the theme, snares in the accent, as the BREAK MAP draws them), the styles, the version */
-static void draw_splash(void)
+/* AMEN's splash (0.2, the 80s), the whole screen: a synthwave sunset drawn here (the sky, the stars, the sun with its
+ * cuts, the grid running to the horizon), the chrome AMEN logo and an original 80s anime DJ as sprites
+ * (amen_art.h, tools/gen_amen_art.py), the styles and the version on a label. In two bands of 120 rows (the canvas);
+ * in GREY and MONO all of it in grays. tools/gen_amen_art.py splash_bg draws the same background for its preview */
+#include "amen_art.h"
+#define SPL_HZ 150                                  /* the horizon */
+#define SPL_SX 92                                   /* the sun */
+#define SPL_SY 120
+#define SPL_SR 50
+#define SPL_LOGO_X 2                                /* the logo's box (ART_LOGO_X / _Y inside it) */
+#define SPL_LOGO_Y 12
+static uint16_t spl_rgb(int32_t r, int32_t g, int32_t b)   /* in GREY and MONO: its gray */
 {
-    static const char *const L[3] = {"AMEN", "JUNGLE / DNB / BREAKCORE", FELUCCA_VERSION};
-    int32_t w, i, k;
-    lcd_fill(0, 0, 240, 240, T_BG);
-    cv_begin(240, 44, T_BG);
-    w = text_w(&AF_L, L[0]);
-    cv_rect((240 - w) / 2 + 4, 30, w, 6, T_ACCENT);   /* a rave flyer's bar under the name */
-    cv_text_on((240 - w) / 2, 0, &AF_L, L[0], T_THEME, T_BG);
-    cv_blit(0, 52);
-    cv_begin(240, 56, T_BG);
-    cv_rect(16, 28, 208, 1, T_LINE);
-    for (i = 0; i < 16; i++) {
-        uint32_t m = JNG_BRK[0][i];
-        int32_t lv = (m & JK) ? 100 : (m & JS) ? 90 : (m & JG) ? 42 : (m & JR) ? 36 : (m & JH) ? 26 : 0, x = 18 + i * 13;
-        uint16_t col = (m & JK) ? T_THEME : (m & JS) ? T_ACCENT : T_MID;
-        for (k = 0; k < 3 && lv; k++) {
-            int32_t hh = 24 * lv / 100 * (k == 0 ? 10 : k == 1 ? 6 : 3) / 10;
-            cv_rect(x + k * 3, 28 - hh, 3, 2 * hh + 1, col);
+    if (ux.mono || ux.bw)
+        return ux_gray((uint32_t)((r * 54 + g * 183 + b * 19) >> 8) >> 3);
+    return (uint16_t)(((uint32_t)r >> 3 << 11) | ((uint32_t)g >> 2 << 5) | ((uint32_t)b >> 3));
+}
+static int32_t spl_lerp(int32_t a, int32_t b, int32_t n, int32_t d) { return a + (b - a) * n / d; }
+static uint16_t spl_mix(const uint8_t *a, const uint8_t *b, int32_t n, int32_t d)
+{
+    return spl_rgb(spl_lerp(a[0], b[0], n, d), spl_lerp(a[1], b[1], n, d), spl_lerp(a[2], b[2], n, d));
+}
+static int32_t spl_fdiv(int32_t a, int32_t b) { return a >= 0 ? a / b : -((-a + b - 1) / b); }   /* floor (b > 0) */
+static uint16_t spl_bg(int32_t x, int32_t y)
+{
+    static const uint8_t SKY_Y[5] = {0, 60, 112, 140, 150};
+    static const uint8_t SKY[5][3] = {{10, 4, 28}, {42, 8, 82}, {150, 30, 140}, {255, 100, 110}, {255, 170, 80}};
+    static const uint8_t SUN0[3] = {255, 236, 90}, SUN1[3] = {255, 60, 150};
+    static const uint8_t LN0[3] = {150, 40, 150}, LN1[3] = {255, 60, 200}, FL0[3] = {44, 8, 74}, FL1[3] = {16, 4, 34};
+    int32_t d = y - SPL_HZ, k;
+    if (d < 0) {
+        int32_t dx = x - SPL_SX, dy = y - SPL_SY;
+        if (dx * dx + dy * dy <= SPL_SR * SPL_SR) {          /* the sun: yellow to pink, cut wider downward */
+            int32_t c = y - (SPL_SY - 10), t = (y - (SPL_SY - SPL_SR)) * 13;
+            if (!(c > 0 && c % 7 < 1 + c / 9))
+                return spl_mix(SUN0, SUN1, t > 2 * SPL_SR * 10 ? 2 * SPL_SR * 10 : t, 2 * SPL_SR * 10);
+        }
+        if ((x * 37 + y * 101) % 211 == 0 && y < 100)
+            return spl_rgb(255, 255, 255);                   /* a star */
+        for (k = 1; y >= SKY_Y[k]; k++)
+            ;
+        return spl_mix(SKY[k - 1], SKY[k], y - SKY_Y[k - 1], SKY_Y[k] - SKY_Y[k - 1]);
+    }
+    if (d == 0)
+        return spl_rgb(255, 120, 210);                       /* the horizon */
+    if (d > 1 && ((2400 / d) / 60 != (2400 / (d + 1)) / 60 ||                       /* a line across, nearer down */
+                  spl_fdiv((x - 120) * 3, d + 2) != spl_fdiv((x - 119) * 3, d + 2)))  /* one to the vanishing point */
+        return spl_mix(LN0, LN1, d > 40 ? 40 : d, 40);
+    return spl_mix(FL0, FL1, d > 90 ? 90 : d, 90);
+}
+/* a sprite's rows that fall in the band (canvas rows 0.., screen rows y0..): runs of a palette index, 0 transparent */
+static void spl_sprite(const uint8_t *d, int32_t w, int32_t h, int32_t sx, int32_t sy, int32_t y0)
+{
+    int32_t r, x;
+    for (r = 0; r < h; r++) {
+        int32_t y = sy + r - y0;
+        for (x = 0; x < w;) {
+            uint32_t b = *d++, v = b >> 3, n = (b & 7u) + 1u;
+            if (v && y >= 0 && y < (int32_t)cv_h) {
+                uint32_t c = ART_PAL[v - 1u], k;
+                uint16_t q = spl_rgb((int32_t)(c >> 11) * 255 / 31, (int32_t)((c >> 5) & 63u) * 255 / 63, (int32_t)(c & 31u) * 255 / 31);
+                for (k = 0; k < n; k++)
+                    cv_pset(sx + x + (int32_t)k, y, q);
+            }
+            x += (int32_t)n;
         }
     }
-    cv_blit(0, 104);
-    cv_begin(240, 40, T_BG);
-    w = text_w(&AF_S, L[1]);
-    cv_text_on((240 - w) / 2, 0, &AF_S, L[1], T_TEXT, T_BG);
-    w = text_w(&AF_S, L[2]);
-    cv_text_on((240 - w) / 2, 22, &AF_S, L[2], T_MID, T_BG);
-    cv_blit(0, 172);
+}
+static void draw_splash(void)
+{
+    static const char *const L[3] = {"JUNGLE / DNB", "BREAKCORE", FELUCCA_VERSION};
+    int32_t band, x, y;
+    for (band = 0; band < 2; band++) {
+        int32_t y0 = band * 120;
+        cv_begin(240, 120, T_BG);
+        for (y = 0; y < 120; y++)
+            for (x = 0; x < 240; x++)
+                cv_pset(x, y, spl_bg(x, y0 + y));
+        spl_sprite(ART_DJ, ART_DJ_W, ART_DJ_H, ART_DJ_X, ART_DJ_Y, y0);
+        if (!band)
+            spl_sprite(ART_LOGO, ART_LOGO_W, ART_LOGO_H, SPL_LOGO_X + ART_LOGO_X, SPL_LOGO_Y + ART_LOGO_Y, y0);
+        else {                                               /* the label: the styles, the version */
+            uint16_t box = spl_rgb(14, 4, 30), edge = spl_rgb(255, 92, 214), ink = spl_rgb(250, 238, 255);
+            cv_rect(4, 56, 92, 58, edge);
+            cv_rect(5, 57, 90, 56, box);
+            cv_rect(5, 57, 90, 3, spl_rgb(40, 228, 255));
+            cv_text_on(12, 63, &AF_S, L[0], ink, box);
+            cv_text_on(12, 79, &AF_S, L[1], ink, box);
+            cv_text_on(12, 96, &AF_S, L[2], spl_rgb(255, 92, 214), box);
+        }
+        cv_blit(0, (uint32_t)y0);
+    }
     lcd_sync();
 }
 #else

@@ -55,8 +55,9 @@ PALETTES = [
     # 1.0.2: black and white (the derived tokens are set, not blended: bw()); the old MONO is GREY (id 0)
     # 1.8: its primary and secondary GREY's red and blue (were white)
     ("MONO",   (0, 0, 0),       (255, 255, 255), (255, 255, 255), RED,       (72, 140, 255)),
-    # AMEN: rave flyer: near-black, acid yellow-green values, bone-white text, hot pink for the one active thing
-    ("AMEN",   (8, 8, 6),       (204, 255, 26),  (240, 238, 226), RED,       (255, 46, 136)),
+    # AMEN (0.2, the 80s): synthwave night: deep indigo, neon magenta values, lavender-white text, cyan for the one
+    # active thing (playhead, cursor), sunset orange for REC and warnings
+    ("AMEN",   (24, 6, 44),     (255, 92, 214),  (250, 238, 255), (255, 150, 40), (40, 228, 255)),
 ]
 BW = "MONO"
 BW_GREY = (82, 82, 82)             # MONO's one mid grey (RGB565 10/20/10): DIM LINE RAISE LANE

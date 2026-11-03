@@ -5,10 +5,10 @@
 #   amen-VERSION-app.bin, amen.json (version, identity, SHA-256 for the installer site)
 # Needs JIELI_TOOLCHAIN (the JieLi Linux toolchain) and AC79_SDK (a checkout of the JieLi AC79 SDK, tag
 # AC79NN_SDK_V1.2.1_2023-12-13: three of its files go into the package), Python 3 with Pillow.
-#   sh tools/build_amen.sh 0.1
+#   sh tools/build_amen.sh 0.2
 set -e
 here=$(cd "$(dirname "$0")/.." && pwd)
-ver=${1:-0.1}
+ver=${1:-0.2}
 out=$here/build/amen
 cd "$here/fw"
 python3 tools/build.py --release "$ver"

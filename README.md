@@ -9,6 +9,15 @@
 >
 > **Если FM-1 не запускается — [инструкция по восстановлению](docs/RESCUE.md).**
 
+## AMEN 0.2: the 80s look
+
+![AMEN 0.2](docs/screens.png)
+
+The firmware the site installs (AMEN on Felucca's core) no longer looks like Felucca: its own font (Chakra Petch),
+a synthwave palette (indigo, neon magenta, cyan, sunset orange), cut corners, LED-meter gauges, a neon line under the
+header, and a power-on splash with an original 80s anime DJ, a sunset and a chrome logo. Pictures above: the firmware's
+own drawing code on a computer (Felucca's renderer, `tools/amen_ui_check.sh`), not mock-ups. Details: [fw/AMEN.md](fw/AMEN.md).
+
 ![AMEN OS](docs/os-screens.png)
 
 Экраны выше — снимки из симулятора AMEN OS: тот же код, что в прошивке, на ПК (`make sim`). Полосы внизу — светодиоды кнопок и клавиш.

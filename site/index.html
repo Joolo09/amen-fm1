@@ -109,6 +109,9 @@
   .chip { font-size: 10px; padding: 6px 8px 4px; background: var(--panel2); color: var(--dim); }
   .chip.ok { background: var(--acid); color: var(--bg); } .chip.err { background: var(--red); color: #fff; }
   .chip.warn { background: var(--warn); color: var(--bg); }
+  .shot { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
+  .shot img { image-rendering: pixelated; width: 240px; max-width: 100%; height: auto; border: 2px solid var(--dim); }
+  .shot figcaption { flex: 1 1 200px; color: var(--dim); font-size: 14px; }
   .portrow label { font: 10px var(--head); color: var(--dim); }
   .portrow select { font: 14px var(--body, monospace); background: var(--panel2); color: var(--ink); border: 2px solid var(--dim);
     padding: 6px 8px; max-width: 100%; min-width: 0; flex: 1 1 200px; }
@@ -209,6 +212,10 @@
   <section class="frame" id="s1">
     <h2><span class="num">01</span> ПРОШИВКА <span id="fwname">AMEN</span> <span class="tag">BETA</span></h2>
     <p>Прошивка <b>AMEN <span id="fwver">…</span></b> для jungle, drum &amp; bass и breakcore. Движки встроены в неё: после установки FM-1 сразу стартует на 170 BPM с нарезанным брейком, вторым брейком для эдитов, reese-басом и драм-китом.</p>
+    <figure class="shot">
+      <img src="splash.png" width="240" height="240" alt="Заставка AMEN 0.2: закат в стиле 80-х, сетка до горизонта, хромовый логотип AMEN и аниме-диджей в наушниках">
+      <figcaption>Новый вид 0.2 — 80-е: свой шрифт, неоновая палитра, срезанные углы, LED-индикаторы и заставка с аниме-диджеем. Снимок сделан самим кодом прошивки на компьютере.</figcaption>
+    </figure>
     <div class="cards">
       <div class="card">
         <h3>JUNGLE</h3>
