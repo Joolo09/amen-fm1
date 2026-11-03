@@ -29,6 +29,14 @@ for a flash write unless it is CONFIRMED.
 | fm1_rescue | checks and backs up first, writes only with `--write`, and only M-VAVE's FM-1 V15 `.fwsc`, SHA-256 `db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a` | `bsp/tools/fm1_rescue.py`, `tools/rescue/fm1_rescue.py`, `docs/RESCUE.md` | CONFIRMED (source); the owner recovered an FM-1 this way |
 | Boot guard (AMEN OS 0.3) | 1–2 failed boots → SAFE MODE (USB + installer, no app); 3 → UBOOT | `os/fm1/main.c` | CONFIRMED (source); NOT RUN on hardware |
 
+## Other FM-1 firmwares (read, not verified)
+
+The community list https://github.com/aroum/fm1-custom-fw (read 2026-11-03, first 100 000 of 263 705 characters) names
+over a hundred FM-1 firmwares (Felucca and its forks, Melodee, X0X, SLOOP and its forks, FoMni, …), most with their own
+web installer. Details it states: stock FM-1 V16 (2026-10-21) is the latest stock release; KARMA shows as USB device
+"FM-1 KARMA"; FANTASMA/Pelucco reports "FM-1_000" and has a rescue boot (OCT- at power-on). Their update paths and flash
+layouts are not checked here: UNKNOWN for every one of them until read in its own source.
+
 ## The owner's FM-1
 
 | Fact | Value | Confidence |
@@ -37,5 +45,6 @@ for a flash write unless it is CONFIRMED.
 | Firmware installed now | "another firmware" (the owner's words, 2026-11-03); name, identity string and update path not known | UNKNOWN |
 | Bootloader | the chip's ROM UBOOT is present (seen); whether the installed firmware changed anything above it is not known | UNKNOWN |
 | A read-back backup of its flash | none on record | UNKNOWN |
+| Its USB-MIDI port name, and whether it answers the update identity query | the installer of 2026-11-02 did not find it ("НЕТ УСТРОЙСТВА"); the port list of the newer page not seen yet | UNKNOWN |
 | AMEN OS 0.2 on it | black screen, then UBOOT; recovered by the owner | CONFIRMED (owner report) |
 | AMEN OS 0.3 on it | never run | NOT RUN |
