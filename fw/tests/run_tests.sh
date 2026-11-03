@@ -393,10 +393,14 @@ if [ -f build/gen/felucca_tables.h ]; then
     mkdir -p build/sound15_demo
     run "1.5 sound items: ANALOG filter TYPE LP / BP / HP (responses, LP and other engines bit for bit), ENV SYNC (times at several tempi), cost, demos" \
         "$OUT/sound15_test" build/sound15_demo
-    $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fold155_test" tests/fold155_test.c -lm
-    mkdir -p build/fold155_demo
-    run "PHASE FOLD (1.5.5): FOLD 0 bit for bit, bounded, no DC, brighter with FOLD, alias-aware gain, cost, demo" \
-        "$OUT/fold155_test" build/fold155_demo
+    # (AMEN: no PHASE, engine 2 is JUNGLE; the test does not build there: a failure, and the rest of the suite runs)
+    if $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fold155_test" tests/fold155_test.c -lm; then
+        mkdir -p build/fold155_demo
+        run "PHASE FOLD (1.5.5): FOLD 0 bit for bit, bounded, no DC, brighter with FOLD, alias-aware gain, cost, demo" \
+            "$OUT/fold155_test" build/fold155_demo
+    else
+        echo "== PHASE FOLD (1.5.5): tests/fold155_test.c does not build"; fail=1
+    fi
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/slicer_test" tests/slicer_test.c -lm
     mkdir -p build/slicer_demo
     run "SLICER: no clicks, timing, sync with the sequencer, STUT, cost, demos" "$OUT/slicer_test" build/slicer_demo

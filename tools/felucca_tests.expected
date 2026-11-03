@@ -1,13 +1,57 @@
+# The failures of Felucca's host suite (fw/tests/run_tests.sh, AMEN_SETUP=0) that AMEN has and Felucca 1.9.0 has not,
+# by tools/felucca_tests.sh: each line as its fails() prints it (numbers N, hashes H). A line starting with # is a
+# comment. Every group below is AMEN's engine swap (engine 2 PHASE -> JUNGLE, engine 6 TRIO -> REESE; the engines shown
+# JUNGLE REESE DRUM SLICE ANALOG FM6, fw/AMEN.md), none a fault of the firmware.
+
+# fold155_test (PHASE's FOLD): built on PHASE's own types and constants (pd_t, ENG_PHASE, PD_FOLD_G0); AMEN has no
+# PHASE, so it does not build (the suite goes on, fw/AMEN.md)
+tests/foldN_test.c:N:N: error: 'ENG_PHASE' undeclared (first use in this function); did you mean 'ENGI_PHASE'?
+tests/foldN_test.c:N:N: error: 'PD_FOLD_GN' undeclared (first use in this function)
+tests/foldN_test.c:N:N: error: unknown type name 'pd_t'; did you mean 'id_t'?
+
+# project_test (and its ASan / UBSan build): wants ENGINES[6] named TRIO (a FUN2 project's engine byte 6 is kept: it is
+# REESE here)
 FUNN -> FUNN: engine bytes kept (WHEEL N, ANALOG N, TRIO N)  FAIL
-MOD MATRIX TEST FAILED
 PROJECT FORMAT TEST FAILED
-UI TEST FAILED
+
+# mod_test: TRIO's PW and INT2 as the matrix's E destinations, found by the name TRIO (no such engine here)
 mod: DST names: EN..EN by the engine's labels                                   FAIL
 mod: MODW -> EN -N: half its range down (TRIO INTN -N..N: -N)               FAIL
-tests/foldN_test.c:N:N: error: unknown type name ‘pd_t’; did you mean ‘id_t’?
-tests/foldN_test.c:N:N: error: ‘ENG_PHASE’ undeclared (first use in this function); did you mean ‘ENGI_PHASE’?
-tests/foldN_test.c:N:N: error: ‘PD_FOLD_GN’ undeclared (first use in this function)
+MOD MATRIX TEST FAILED
+
+# ui_test (and its FELUCCA_CPU2=0, FELUCCA_FM4=1, FELUCCA_ADPCM=1 builds): Felucca's engine order and count (FM6 second,
+# PHASE third, DRUM last); AMEN shows JUNGLE and REESE first
 ui: EDIT + white key n: the n-th engine shown (FMN Nnd, DRUM last), while playing; steps, LEN, SLICER stay FAIL
-ui: N FAILED
 ui: PRESETS KNOB N: the engines in order, DIGITAL skipped, back to the first   FAIL
 ui: engines shown ANALOG FMN PHASE ... NOISE SLICE DRUM ADPCM (ENGINE_ORDER); PRESETS lists them so FAIL
+ui: N FAILED
+
+# regress (its three builds): the golden renders of PHASE's and TRIO's presets; those presets are gone (JUNGLE's and
+# REESE's renders are new, not failures). Every other render (the other engines, the mixes, sends, songs) is unchanged.
+regress: GOLDEN GONE  preset/PHASE/N_BELL (no such render now)
+regress: GOLDEN GONE  preset/PHASE/N_BRASS (no such render now)
+regress: GOLDEN GONE  preset/PHASE/N_ORGAN (no such render now)
+regress: GOLDEN GONE  preset/PHASE/N_RESO (no such render now)
+regress: GOLDEN GONE  preset/PHASE/N_STRING (no such render now)
+regress: GOLDEN GONE  preset/PHASE/N_WIRE (no such render now)
+regress: GOLDEN GONE  preset/TRIO/N_ARP_LEAD (no such render now)
+regress: GOLDEN GONE  preset/TRIO/N_CHIP_CHOIR (no such render now)
+regress: GOLDEN GONE  preset/TRIO/N_FAT_BASS (no such render now)
+regress: GOLDEN GONE  preset/TRIO/N_RING_BELL (no such render now)
+regress: GOLDEN GONE  preset/TRIO/N_SYNC_LEAD (no such render now)
+
+# web/test_web.mjs: the web editor's mock device (editor.html ?mock, a Felucca FM-1: PHASE, TRIO, Felucca's order and
+# power-on tracks) against the firmware's tables (build/host/desc.json). Connected to a device the editor reads its
+# descriptors and engine names (DESC), and AMEN's site does not ship the editor.
+editor: mock tables == firmware (N differences)                 FAIL
+editor: enum lists in the device's knob order (N lists)         FAIL
+WEB TESTS FAILED (N)
+
+# target_budget.py (only with the device build, build/felucca.dis: CI): PHASE's and TRIO's render loops are not built
+target: FAIL phase_render not found in build/felucca.dis (renamed? inlined? update FUNCS)
+target: FAIL phase_render_f not found in build/felucca.dis (renamed? inlined? update FUNCS)
+target: FAIL trio_render not found in build/felucca.dis (renamed? inlined? update FUNCS)
+target: FAIL trio_pass not found in build/felucca.dis (renamed? inlined? update FUNCS)
+
+# the suite's last line, from the failures above
+HOST TESTS FAILED

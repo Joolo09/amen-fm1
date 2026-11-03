@@ -2,16 +2,22 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Felucca's host test suite (fw/tests/run_tests.sh) on the AMEN sources and on Felucca 1.9.0 as released, and the
 # failures that only AMEN has. The suite expects Felucca's power-on setup (its tracks, 120 BPM), so AMEN runs it with
-# AMEN_SETUP=0: what is left is the engines' swap (PHASE -> JUNGLE, TRIO -> REESE). Expected there: the tests of PHASE
-# and TRIO themselves (fold155_test and the like) and the renders of engines 2 and 6. Full logs in build/tests/. Run after tools/build_amen.sh (it makes fw/build/gen);
-# needs JIELI_TOOLCHAIN and AC79_SDK as that does.
+# AMEN_SETUP=0, given by a wrapper of cc (the suite's sanitizer builds take only the first word of CC); what is left is
+# the engines' swap (PHASE -> JUNGLE, TRIO -> REESE). The whole suite runs on AMEN (fold155_test, PHASE's, does not
+# build here: a failure, not the end of the suite). The failures AMEN is expected to have, each with its reason:
+# tools/felucca_tests.expected. Full logs in build/tests/. Run after tools/build_amen.sh (it makes fw/build/gen); needs
+# JIELI_TOOLCHAIN and AC79_SDK as that does.
 set -e
 here=$(cd "$(dirname "$0")/.." && pwd)
 out=$here/build/tests
 mkdir -p "$out"
-fails() { grep -E "FAIL|error:|Error|\bfailed\b" "$1" | grep -vE "[[:space:]]ok$" | sed -E 's/^[0-9T:.Z-]+ //; s/[0-9]+(\.[0-9]+)?(e[-+]?[0-9]+)?/N/g' | sort -u; }
+# a failure line, normalised: no time stamp, gcc's quotes in any locale, hashes (regress' GOLDEN CHANGED) and numbers
+fails() { grep -E "FAIL|error:|Error|\bfailed\b|GOLDEN (CHANGED|GONE)|regress: CRASH|OVER BUDGET" "$1" | grep -vE "[[:space:]]ok$" |
+    sed -E "s/^[0-9T:.Z-]+ //; s/‘|’/'/g; s/\b[0-9a-f]{16}\b/H/g; s/[0-9]+(\.[0-9]+)?(e[-+]?[0-9]+)?/N/g" | sort -u; }
 
-(cd "$here/fw" && CC="cc -DAMEN_SETUP=0" sh tests/run_tests.sh > "$out/amen.log" 2>&1) && echo "AMEN: the suite passed" || echo "AMEN: the suite reported failures"
+printf '#!/bin/sh\nexec cc -DAMEN_SETUP=0 "$@"\n' > "$out/amen-cc"
+chmod +x "$out/amen-cc"
+(cd "$here/fw" && CC="$out/amen-cc" sh tests/run_tests.sh > "$out/amen.log" 2>&1) && echo "AMEN: the suite passed" || echo "AMEN: the suite reported failures"
 
 ref=$out/felucca-1.9.0
 if [ ! -d "$ref" ]; then
@@ -27,9 +33,8 @@ sed 's/^/   /' "$out/felucca.fails" | head -40
 comm -23 "$out/amen.fails" "$out/felucca.fails" > "$out/amen-only.fails"
 echo "== failures only on the AMEN sources: $(wc -l < "$out/amen-only.fails")"
 sed 's/^/   /' "$out/amen-only.fails" | head -80
-# expected (tools/felucca_tests.expected): the tests of PHASE and TRIO themselves (fold155, TRIO's bytes in FUN
-# projects and in the mod matrix) and of Felucca's engine order (AMEN shows JUNGLE and REESE first)
-sort -u "$here/tools/felucca_tests.expected" > "$out/expected.fails"
+# expected (tools/felucca_tests.expected: lines as fails() prints them; # starts a comment, the reason)
+sed '/^#/d; /^$/d' "$here/tools/felucca_tests.expected" | sort -u > "$out/expected.fails"
 comm -23 "$out/amen-only.fails" "$out/expected.fails" > "$out/unexpected.fails"
 if [ -s "$out/unexpected.fails" ]; then
     echo "== UNEXPECTED failures on the AMEN sources:"

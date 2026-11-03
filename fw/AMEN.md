@@ -15,6 +15,10 @@ the changes listed here. The engines themselves are in `../engines/` (GPL-3.0-on
   CC 74 / 71), `firmware/src/category.c` (PRESET_CAT, cat_of_engine): the entries of engines 2 and 6.
 - `firmware/src/params.c`: BPM 170 at power-on.
 - `firmware/src/ui_draw.c`: the splash says AMEN.
+- `tests/run_tests.sh`: `tests/fold155_test.c` (PHASE's FOLD) does not build here (no PHASE); that is a failure of the
+  suite now, not its end (`set -e` stopped it there, so nothing after it ran on AMEN). `../tools/felucca_tests.sh`
+  (CI) runs the whole suite and lists the failures AMEN is expected to have, with the reasons, in
+  `../tools/felucca_tests.expected`.
 
 Projects and user presets keep Felucca's formats; a Felucca project's PHASE and TRIO tracks play as JUNGLE and REESE
 here. The editor protocol still names the firmware `FELUCCA vX.Y`, so Felucca's web editor and backups work with it.
