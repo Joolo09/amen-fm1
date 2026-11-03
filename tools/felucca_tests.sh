@@ -11,9 +11,18 @@ set -e
 here=$(cd "$(dirname "$0")/.." && pwd)
 out=$here/build/tests
 mkdir -p "$out"
-# a failure line, normalised: no time stamp, gcc's quotes in any locale, hashes (regress' GOLDEN CHANGED) and numbers
-fails() { grep -E "FAIL|error:|Error|\bfailed\b|GOLDEN (CHANGED|GONE)|regress: CRASH|OVER BUDGET" "$1" | grep -vE "[[:space:]]ok$" |
-    sed -E "s/^[0-9T:.Z-]+ //; s/‘|’/'/g; s/\b[0-9a-f]{16}\b/H/g; s/[0-9]+(\.[0-9]+)?(e[-+]?[0-9]+)?/N/g" | sort -u; }
+# the failures in a log: lines with FAIL / error: / Error / failed, regress' GOLDEN CHANGED / GONE, CRASH and OVER
+# BUDGET lines, and a test killed by a signal or stopped by a sanitizer (sh prints only "Segmentation fault",
+# "Aborted", ..: the line is named after the test, its "== " line). Normalised: no time stamp, gcc's quotes in any
+# locale, addresses 0xN, hashes H, numbers N
+fails() {
+    awk '/^== / { t = substr($0, 4) }
+         /Segmentation fault|Aborted|Bus error|Illegal instruction|Floating point exception|ERROR: [A-Za-z]*Sanitizer|WARNING: ThreadSanitizer/ {
+             print "CRASHED: " t ": " $0; next }
+         { print }' "$1" |
+        grep -E "FAIL|error:|Error|\bfailed\b|GOLDEN (CHANGED|GONE)|regress: CRASH|OVER BUDGET|^CRASHED: " | grep -vE "[[:space:]]ok$" |
+        sed -E "s/^[0-9T:.Z-]+ //; s/‘|’/'/g; s/0x[0-9a-fA-F]+/0xN/g; s/\b[0-9a-f]{16}\b/H/g; s/[0-9]+(\.[0-9]+)?(e[-+]?[0-9]+)?/N/g" | sort -u
+}
 
 printf '#!/bin/sh\nexec cc -DAMEN_SETUP=0 "$@"\n' > "$out/amen-cc"
 chmod +x "$out/amen-cc"

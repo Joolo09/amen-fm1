@@ -839,6 +839,23 @@ static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "mes
     "menu_midi_track", "menu_midi_channels_unused", "menu_midi_auto_select", "home_tracks_midi", "mixer_midi", "edit_phase_fold",
     "amen_home", "amen_reese", "amen_chop", "amen_bass", "amen_edit", "amen_tools", "amen_jungle", "amen_brkcore",
     "amen_roller"};
+/* the screens this build does not draw: DIGITAL's own without FELUCCA_FM4; AMEN's (the break map, the reese, CHOP,
+ * BASSLINE, the edit makers) unless the power-on tracks are AMEN's, JUNGLE on track 1 and REESE on track 2
+ * (AMEN_SETUP=0, Felucca's suite: ANALOG and FM6 there; tools/amen_ui_check.sh draws them) */
+static int scene_off(uint32_t s)
+{
+    if (!FELUCCA_FM4 && (s == S_OP_ENV || (s >= S_ALG1 && s <= S_OP_LEVEL)))
+        return 1;
+    return s >= S_AMEN_HOME && s <= S_AMEN_ROLLER &&
+           !(ENGINES[trk_def_engine(0)] == &ENG_JUNGLE && ENGINES[trk_def_engine(1)] == &ENG_REESE);
+}
+static uint32_t scene_count(void)
+{
+    uint32_t s, n = 0;
+    for (s = 0; s < S_COUNT; s++)
+        n += !scene_off(s);
+    return n;
+}
 
 /* the STEP page's piano roll (ui_graph.c graph_roll) on track 1, stopped unless said: an empty pattern; ACID in
  * A minor; POLY chords (Am7 F C G, tied); a line with ties, slides and accents in C major; LEN 32 on its second
@@ -1298,7 +1315,10 @@ static void setup(int s)
     case S_AMEN_TOOLS: song.sel = 0; go_page(GR_ROLL); ui.layer = LAYER_SEQ; break;
     case S_AMEN_JUNGLE: case S_AMEN_BRKCORE: case S_AMEN_ROLLER:
         song.sel = 0; trk[0].p[P_SLEN] = 16; rng_state = 0x2468ACEu + (uint32_t)s;
-        ui_message(tl_do(&trk[0], s == S_AMEN_JUNGLE ? TL_RANDOM : s == S_AMEN_BRKCORE ? TL_COOK : TL_BEAT, 0));
+        {   /* (0: nothing done, said why, as ui_layer.c's caller has it) */
+            const char *m = tl_do(&trk[0], s == S_AMEN_JUNGLE ? TL_RANDOM : s == S_AMEN_BRKCORE ? TL_COOK : TL_BEAT, 0);
+            if (m) ui_message(m);
+        }
         go_page(GR_ROLL); ui.cursor = 0; break;
     case S_ALG1: case S_ALG2: case S_ALG3: case S_ALG4: case S_ALG5: case S_ALG6: case S_ALG7: case S_ALG8:
         eng(1); TSEL->p[P_E0] = (int16_t)(s - S_ALG1);      /* the 8 DIGITAL charts; FB on the odd ones, IDX high .. 0 */
@@ -2371,8 +2391,8 @@ int main(int argc, char **argv)
         for (s = 0; s < S_COUNT; s++) {
             char name[64];
             uint32_t k;
-            if (!FELUCCA_FM4 && (s == S_OP_ENV || (s >= S_ALG1 && s <= S_OP_LEVEL)))
-                continue;                           /* (DIGITAL's own screens: FELUCCA_FM4=1 only) */
+            if (scene_off(s))
+                continue;                           /* (DIGITAL's own screens: FELUCCA_FM4=1 only; AMEN's: its tracks) */
             snprintf(name, sizeof name, "%s/%s", UI_PALETTES[p].name, S_NAME[s]);
             cur_name = name;
             setup((int)s);
@@ -2394,7 +2414,7 @@ int main(int argc, char **argv)
                 for (k = 0; k < sizeof ST_PAL / sizeof ST_PAL[0] && strcmp(UI_PALETTES[p].name, ST_PAL[k]); k++) ;
                 for (s = 0; s < S_COUNT; s++) {
                     char name[64], tag[24];
-                    if (!FELUCCA_FM4 && (s == S_OP_ENV || (s >= S_ALG1 && s <= S_OP_LEVEL)))
+                    if (scene_off(s))
                         continue;
                     snprintf(tag, sizeof tag, "%s_%s", ST_N[st], UI_PALETTES[p].name);
                     snprintf(name, sizeof name, "%s/%s", tag, S_NAME[s]);
@@ -2424,7 +2444,7 @@ int main(int argc, char **argv)
             for (p = 0; p < NPALETTES; p++)
                 for (s = 0; s < S_COUNT; s++) {
                     char name[64], tag[24];
-                    if (!FELUCCA_FM4 && (s == S_OP_ENV || (s >= S_ALG1 && s <= S_OP_LEVEL)))
+                    if (scene_off(s))
                         continue;
                     snprintf(tag, sizeof tag, "%s_%s", ST_N[st], UI_PALETTES[p].name);
                     snprintf(name, sizeof name, "%s/%s", tag, S_NAME[s]);
@@ -2604,7 +2624,7 @@ int main(int argc, char **argv)
     fclose(rep);
     printf("ui_render: %u screens x %u palettes + the page/value sweep; %u lint findings, %u ellipsised free texts (%u distinct), "
            "%u inks on their own colour, %u GREY / MONO pixels off gray / neutral; report %s\n",
-           (unsigned)(S_COUNT - (FELUCCA_FM4 ? 0 : 1 + S_OP_LEVEL - S_ALG1 + 1)), (unsigned)NPALETTES, nfind, nfree, nfree_seen, nink,
+           (unsigned)scene_count(), (unsigned)NPALETTES, nfind, nfree, nfree_seen, nink,
            mono_bad, path);
     printf("ui_render: alignment: %u measurements of %u places, %u off by 1 px or more%s\n", al_count, al_nst - 1u, al_fail,
            al_fail ? " (see align.txt)" : "");

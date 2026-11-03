@@ -50,7 +50,11 @@ BUILDING.md says). GitHub Actions builds it on every push: the package is `amen-
 - `tools/gen_ui_palettes.py`, `firmware/src/panel.c`: the AMEN palette (near-black, acid yellow-green, hot pink),
   the default.
 - `tests/ui_render.c`: AMEN's scenes (amen_*: the break map playing, the reese, CHOP, BASSLINE, the edit makers), the
-  AMEN palette's PNGs, the splash's expected lines.
+  AMEN palette's PNGs, the splash's expected lines. The scenes are drawn only when the power-on tracks are AMEN's
+  (JUNGLE on track 1, REESE on track 2: `scene_off`, which also skips DIGITAL's screens without FELUCCA_FM4); with
+  AMEN_SETUP=0 (Felucca's suite) they are skipped, and an edit maker that did nothing (`tl_do` 0: COOK on Felucca's
+  empty ANALOG track) shows no message, as `ui_layer.c` has it (the renderer passed the 0 to `ui_message`: a
+  segmentation fault, twice in the suite, FELUCCA_FM4=1 too). AMEN_SETUP=1 draws the same screens as before.
 
 ## The 80s look (AMEN 0.2)
 
