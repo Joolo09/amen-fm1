@@ -8,7 +8,9 @@
   const g32 = (b, i) => b[i] + b[i+1]*128 + b[i+2]*16384 + b[i+3]*2097152 + b[i+4]*268435456;
   const u32 = (v) => [0,1,2,3,4].map((i) => Math.floor(v / 2 ** (7*i)) & 0x7F);
   const listeners = [];
-  const input = { name: "FM-1", state: "connected", onmidimessage: null, open: async () => {}, };
+  // ids as Chrome gives them; names settable (S.inName / S.outName: another firmware's, Windows' MIDIIN2 (...))
+  const input = { id: "input-1", get name() { return S.inName || "FM-1"; }, manufacturer: "", state: "connected", onmidimessage: null, open: async () => {}, };
+  const other = { id: "input-0", name: "Keystation 49", manufacturer: "M-Audio", state: "connected", onmidimessage: null, open: async () => {} };
   const emit = (bytes) => setTimeout(() => input.onmidimessage && input.onmidimessage({ data: new Uint8Array(bytes) }), 2);
   function identity() {
     const txt = S.mode === "ota" ? "ota-" + S.fw.replace(/_.*/, "") + "_1" : S.fw;
@@ -37,7 +39,7 @@
   }
   function onResponse(u) {
     const addr = (u[7] | (u[8] << 8) | (u[9] << 16) | (u[10] << 24)) >>> 0, len = u[11] | (u[12] << 8);
-    if (addr === 0xE0000000) { S.mode = "ota"; S.log.push("loader"); return; }
+    if (addr === 0xE0000000) { S.mode = "ota"; S.fw = S.target.replace(/_.*/, "") + "_0"; S.log.push("loader"); return; }   // (the package's loader)
     if (addr === 0xF0000000) { S.mode = "app"; S.fw = S.target; S.log.push("written"); return; }
     if (S.mode === "ota") { S.otaBytes += len; for (let i = 0; i < len; i++) S.chunkSum = (S.chunkSum + u[14 + i] * ((addr + i) % 251 + 1)) % 1000000007; }
     nextReq();
@@ -63,7 +65,7 @@
         const name = String.fromCharCode(...b.slice(64, 80)).split("\0")[0]; S.slots[k] = { st: 1, name, id: b[16] | (b[17]<<8) | (b[18]<<16) | (b[19]<<24) >>> 0, ver: b[20] }; } }
     }
   }
-  const output = { name: "FM-1", state: "connected", open: async () => {},
+  const output = { id: "output-1", get name() { return S.outName || S.inName || "FM-1"; }, manufacturer: "", state: "connected", open: async () => {},
     send(bytes) {
       bytes = Array.from(bytes);
       if (bytes.join() === [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7].join()) { emit(identity()); return; }
@@ -72,6 +74,8 @@
       const u = unpack7(bytes.slice(1, -1));
       if (u[1] === 0x59 && u[2] === 0x30) onResponse(u);
     } };
-  const access = { inputs: new Map([["in", input]]), outputs: new Map([["out", output]]), onstatechange: null, sysexEnabled: true };
+  const otherOut = { id: "output-0", name: "Keystation 49", state: "connected", open: async () => {}, send() {} };
+  const access = { inputs: new Map([["input-0", other], ["input-1", input]]), outputs: new Map([["output-0", otherOut], ["output-1", output]]),
+    onstatechange: null, sysexEnabled: true };
   navigator.requestMIDIAccess = async (o) => { if (!o || !o.sysex) throw new Error("no sysex"); return access; };
 })();

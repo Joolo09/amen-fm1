@@ -101,12 +101,42 @@ async function access() {
   } catch (_) {
     throw new Error("MIDI (SysEx) не разрешён. Разрешите MIDI в настройках сайта (значок слева от адреса) и нажмите снова.");
   }
+  ports();
+  midi.onstatechange = () => ports();
   return midi;
+}
+
+// the MIDI inputs by their id: AUTO tries every port (the FM-1-looking ones first), or the one chosen
+function ports() {
+  const sel = $("port"), keep = sel.value;
+  sel.length = 1;
+  for (const i of midi.inputs.values()) {
+    if (i.state === "disconnected") continue;
+    const o = document.createElement("option");
+    o.value = i.id;
+    o.textContent = `${i.name || "?"}${i.manufacturer ? " · " + i.manufacturer : ""} [${i.id}]`;
+    sel.append(o);
+  }
+  sel.value = [...sel.options].some((o) => o.value === keep) ? keep : "";
+}
+function updater() {
+  const up = new Updater(midi, (...a) => log(...a));
+  up.portId = $("port").value || null;
+  return up;
+}
+function showPorts(up) {
+  const el = $("ports"), list = up.ports || [];
+  if (!list.length) { el.hidden = false; el.textContent = "MIDI-портов нет: браузер не видит ни одного MIDI-устройства."; return; }
+  el.hidden = false;
+  el.textContent = "Проверенные порты:\n" + list.map((p) =>
+    `• ${p.name}${p.maker ? " (" + p.maker + ")" : ""} [${p.id}] → ` +
+    (!p.out ? "нет парного выхода" : p.answer === "busy" ? "занят другой программой" : p.answer ? "ответил: " + p.answer : "не ответил")).join("\n");
 }
 
 function describe(id) {
   if (!id) return { text: "НЕТ УСТРОЙСТВА", kind: "err" };
   if (/^ota-/i.test(id.model)) return { text: "РЕЖИМ ОБНОВЛЕНИЯ", kind: "warn", ota: true };
+  if (!/^FM-1$/i.test(id.model)) return { text: `ДРУГАЯ ПРОШИВКА (${id.text})`, kind: "warn" };
   if (FW && id.text === FW.product) return { text: `${NAME} ${FW.version}`, kind: "ok", current: true };
   if (id.version >= 700 && id.version <= 799) return { text: `AMEN OS (${id.text})`, kind: "warn" };
   if (id.version >= 900 && id.version <= 999) return { text: `FELUCCA/AMEN (${id.text})`, kind: "warn" };
@@ -118,12 +148,16 @@ $("connect").addEventListener("click", async () => {
   say("st0", "Ищу FM-1…", "busy");
   try {
     await access();
-    const up = new Updater(midi, (...a) => log(...a));
+    const up = updater();
     const dev = await up.find();
     if (dev) dev.link.close();
+    showPorts(up);
+    if (dev && dev.portId) $("port").value = dev.portId;
     const id = dev && dev.id, d = describe(id);
     chip("devchip", d.text, d.kind);
-    if (!id) say("st0", MIDI_TEXT.notfound, "err");
+    const named = (up.ports || []).filter((p) => /fm-?1|m-?vave|jieli|sinco/i.test(`${p.name} ${p.maker}`));
+    if (!id && named.length) say("st0", `Порт «${named[0].name}» есть, но FM-1 не отвечает на запрос обновления. Закройте другие MIDI-программы и попробуйте снова. Если на FM-1 прошивка без обновления по USB, вернуть заводскую можно только через режим UBOOT — инструкция ниже.`, "err");
+    else if (!id) say("st0", MIDI_TEXT.notfound + " Выберите порт FM-1 в списке MIDI-ПОРТ и нажмите снова.", "err");
     else if (d.ota) say("st0", `FM-1 в режиме обновления: запись прервалась. Нажмите «ПРОШИТЬ ${NAME}», чтобы продолжить.`, "busy");
     else if (d.current) say("st0", `На FM-1 уже стоит ${NAME} ${FW.version}. Прошить заново можно в шаге 01.`, "ok");
     else say("st0", `Найден FM-1 (${id.text}). Дальше шаг 01.`, "ok");
@@ -144,7 +178,7 @@ $("fwgo").addEventListener("click", async () => {
   bar("fwbar", 0);
   try {
     await access();
-    const up = new Updater(midi, (...a) => log(...a));
+    const up = updater();
     const total = 74 + Math.ceil(image.length / 512);   // step 1's reads, then the whole image in 512-byte reads
     const step = (k, a) => {
       log(`прошивка: ${k} ${a ?? ""}`);
@@ -161,8 +195,14 @@ $("fwgo").addEventListener("click", async () => {
       log("найден режим обновления: продолжаю запись");
       if (!(await up.resume(image, step, FW.product))) throw Object.assign(new Error("stopped"), { code: "stopped" });
     } else {
-      await up.install(image, FW.product, step);
+      try {
+        await up.install(image, FW.product, step);
+      } catch (e) {   // a firmware that names itself otherwise: the user's call
+        if (e.code !== "model" || !window.confirm(`Устройство называет себя «${e.detail}», а не FM-1. Если это точно M-VAVE FM-1 с другой прошивкой — нажмите OK, и ${NAME} запишется поверх неё.`)) throw e;
+        await up.install(image, FW.product, step, true);
+      }
     }
+    showPorts(up);
     say("st1", `${NAME} ${FW.version} установлена! FM-1 перезапустился — жмите PLAY.`, "ok");
     say("st0", `На FM-1 стоит ${NAME} ${FW.version}.`, "ok");
     chip("devchip", `${NAME} ${FW.version}`, "ok");

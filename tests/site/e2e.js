@@ -88,6 +88,21 @@ const text = (p, id) => p.textContent(id);
   check(/уже стоит/.test(await text(p, "#st0")), "AMEN found: " + await text(p, "#st0"));
   await p.close();
 
+  // another firmware, its own name and Windows' port names: found by probing every port, installed after the question
+  p = await open(b, `{ fw: "X0X_12", inName: "MIDIIN2 (Groovebox)", outName: "MIDIOUT2 (Groovebox)" }`);
+  await p.click("#connect");
+  await p.waitForFunction(() => /ДРУГАЯ/.test(document.getElementById("devchip").textContent));
+  check(true, "another firmware: " + await text(p, "#devchip"));
+  check(/Keystation/.test(await text(p, "#ports")) && /X0X_12/.test(await text(p, "#ports")), "the probed ports listed");
+  check((await p.$$eval("#port option", (o) => o.map((x) => x.value))).includes("input-1"), "the port list has the ids");
+  await p.check("#fwok");
+  await p.click("#fwgo");
+  await p.waitForFunction((re) => new RegExp(re).test(document.getElementById("st1").textContent), FW_DONE.source, { timeout: 180000 });
+  const sx = await p.evaluate(() => ({ fw: window.__fm1.fw, bytes: window.__fm1.otaBytes }));
+  check(/установлена/.test(await text(p, "#st1")) && sx.fw === meta.product && sx.bytes === img.length, "over another firmware: " + await text(p, "#st1"));
+  check(!p.errors.length, "no page errors " + p.errors.join("; "));
+  await p.close();
+
   // no FM-1
   p = await open(b, "{}");
   await p.evaluate(() => { navigator.requestMIDIAccess = async () => ({ inputs: new Map(), outputs: new Map() }); });

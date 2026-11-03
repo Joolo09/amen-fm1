@@ -6,6 +6,10 @@
 // or Felucca) reads parts of the package and stages the update loader. Step 2:
 // the loader reads the whole image and writes it. Both steps are "the device
 // asks, we answer": cmd 0x30 read requests on the logical image.
+//
+// AMEN-FM1 changes (GPL-3.0, as the file): the ports are found by their WebMIDI id (a chosen port first, then the ports named like an
+// FM-1, then every other), an output pairs with its input by id, name or position, an identity of any form is accepted,
+// and what was probed is kept in this.ports for the page to show.
 
 const HS_QUERY = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];
 const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
@@ -59,11 +63,16 @@ function parseRequest(pkt) {
 
 function parseIdentity(pkt) {
   const d = unpack7(pkt.slice(1, -1));
-  if (d.length !== 34 || d[0] !== 0 || d[1] !== 0x59 || d[2] !== 0x11) return null;
-  const txt = String.fromCharCode(...d.slice(6, 33)).replace(/\0+$/, "");
-  const m = /^([^_]+)_(\d+)$/.exec(txt);
-  return m ? { text: txt, model: m[1], version: parseInt(m[2], 10) } : null;
+  if (d.length < 8 || d[0] !== 0 || d[1] !== 0x59 || d[2] !== 0x11) return null;
+  const txt = String.fromCharCode(...d.slice(6, 33)).replace(/\0.*$/s, "").trim();
+  if (!txt) return null;
+  const m = /^(.+)_([^_]*)$/.exec(txt);          // FM-1_015, FM-1_918, ota-FM-1_0 ... or anything else a firmware says
+  const v = m ? parseInt(m[2].replace(/\D/g, ""), 10) : NaN;
+  return { text: txt, model: m ? m[1] : txt, version: Number.isFinite(v) ? v : 0 };
 }
+
+const LIKELY = /fm-1|fm1|felucca|amen|ota|composite|sinco|m-vave|mvave|jieli|usb-midi|usb midi/i;
+const norm = (n) => (n || "").toLowerCase().replace(/midi(in|out)\d*\s*\(?|\)|\b(in|out|input|output)\b|port|\d+$/g, "").replace(/\s+/g, " ").trim();
 
 // one MIDI in/out pair with a SysEx queue
 class Link {
@@ -114,18 +123,35 @@ export class Updater {
     this.log = log || (() => {});
   }
 
-  // every in/out pair with the same port name that answers the handshake
+  // the output that belongs to an input: the same id, the same name, the same name without Windows' MIDIIN/MIDIOUT,
+  // the same position, the only one
+  pairOf(input, outs) {
+    const live = outs.filter((o) => o.state !== "disconnected");
+    const ins = [...this.access.inputs.values()];
+    return live.find((o) => input.id && o.id === input.id) || live.find((o) => o.name === input.name) ||
+      live.find((o) => norm(o.name) && norm(o.name) === norm(input.name)) ||
+      (ins.length === live.length ? live[ins.indexOf(input)] : null) || (live.length === 1 ? live[0] : null);
+  }
+
+  // every input (by its WebMIDI id) with an output that answers the handshake: this.portId first, then the ports that
+  // look like an FM-1, then every other port (a firmware may name its port anything)
   async find(filter) {
     const outs = [...this.access.outputs.values()];
-    for (const input of this.access.inputs.values()) {
-      if (input.state === "disconnected") continue;
-      if (!/fm-1|felucca|ota|composite|sinco|usb-midi/i.test(input.name || "")) continue;   // never probe other gear
-      const output = outs.find((o) => o.name === input.name && o.state !== "disconnected");
+    const ins = [...this.access.inputs.values()].filter((i) => i.state !== "disconnected");
+    const rank = (i) => (i.id === this.portId ? 0 : LIKELY.test(`${i.name} ${i.manufacturer}`) ? 1 : 2);
+    const order = ins.map((i, k) => [rank(i), k, i]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map((x) => x[2]);
+    this.ports = [];
+    for (const input of order) {
+      const output = this.pairOf(input, outs);
+      const seen = { id: input.id, name: input.name || "?", maker: input.manufacturer || "", out: output ? output.name : null, answer: null };
+      this.ports.push(seen);
       if (!output) continue;
-      try { await input.open(); await output.open(); } catch (_) { continue; }
+      try { await input.open(); await output.open(); } catch (_) { seen.answer = "busy"; continue; }
       const link = new Link(input, output);
       const id = await handshake(link, 2);
-      if (id && (!filter || filter(id))) return { link, id, name: input.name };
+      seen.answer = id ? id.text : "";
+      this.log(`port ${seen.name} [${seen.id}] -> ${seen.out}: ${id ? id.text : "no answer"}`);
+      if (id && (!filter || filter(id))) return { link, id, name: input.name, portId: input.id };
       link.close();
     }
     return null;
@@ -171,12 +197,13 @@ export class Updater {
   }
 
   // full install: running firmware -> loader -> new firmware
-  async install(image, product, onStep) {
+  // force: the device's identity names another model (another firmware's own name): install anyway
+  async install(image, product, onStep, force = false) {
     const step = onStep || (() => {});
     const dev = await this.find((id) => !IS_OTA(id));
     if (!dev) throw fail("notfound", "FM-1 not found (USB cable, and no other app using it?)");
     const [model] = product.split("_");
-    if (dev.id.model !== model) { dev.link.close(); throw fail("model", `the device is ${dev.id.text}, the package is for ${product}`); }
+    if (dev.id.model !== model && !force) { dev.link.close(); throw fail("model", `the device is ${dev.id.text}, the package is for ${product}`, dev.id.text); }
     step("start", dev.id.text);
     dev.link.send(UPGRADE);
     await sleep(2000);
