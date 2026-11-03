@@ -34,6 +34,7 @@ UPPER = ["CUTOFF", "RESO", "LEVEL", "DECAY", "RELEASE", "SOUND", "OCOE", "COCO",
          "FELUCCA", "PRESETS", "ANALOG", "DIGITAL", "PITCH", "SWING", "AV AW LT TA YO"]
 RULE = ["gfx"]   # "gfx": src/gfx.c cv_text; "rounded": the earlier rule (each glyph at the rounded pen, 1 phase)
 LIMIT = {"S": 0.25, "M": 0.25, "L": 0.5}
+TRACK = [0.0]    # the face's tracking in px per glyph (gen_aa_font.py preset: the intended pen moves by it too)
 
 
 def parse(path):
@@ -131,7 +132,7 @@ def measure(f, font_hi, s):
         if ch == " " or not e[4]:
             d.append(None)
             continue
-        pen = (font_hi.getlength(s[:i + 1]) - font_hi.getlength(s[i])) / SS
+        pen = (font_hi.getlength(s[:i + 1]) - font_hi.getlength(s[i])) / SS + i * TRACK[0]   # (+ the face's tracking)
         w = int(pen + font_hi.getlength(s[i]) / SS) + 3 * f["h"]
         img = ar.render_cell(font_hi, ch, (w * SS, 3 * f["h"] * SS), round((x0 + pen) * SS), 2 * f["h"] * SS)
         a = img.reduce(SS)                               # box-filtered coverage on the pixel grid
@@ -174,10 +175,14 @@ def main():
     a = ap.parse_args()
     RULE[0] = a.rule
     faces = parse(a.header)
-    spec = {n: (font, px) for n, font, px, *_ in gf.preset("inter-tight")}
+    # the preset the header was made with (AMEN: Chakra Petch, its tracking part of the intended placement)
+    pre = "chakra-petch" if "Chakra Petch" in Path(a.header).read_text().split("\n", 1)[0] else "inter-tight"
+    spec = {n: (font, px, t or 0.0) for n, font, px, _, _, t, *_ in gf.preset(pre)}
     bad = 0
+    print(f"  (against {pre})")
     for name, f in faces.items():
-        font, px = spec[name]
+        font, px, TRACK[0] = spec[name]
+        TRACK[0] *= px
         font_hi = ar.open_font(font, px * SS)
         words = LOWER if f["last"] >= ord("z") else UPPER
         # a sparse face (L): the words it can draw (the firmware draws no others in it)
