@@ -9,7 +9,16 @@ set -e
 here=$(cd "$(dirname "$0")/.." && pwd)
 out=$here/build/tests
 mkdir -p "$out"
-fails() { grep -E "FAIL|error:|Error|\bfailed\b" "$1" | grep -vE "[[:space:]]ok$" | sed -E 's/^[0-9T:.Z-]+ //; s/[0-9]+(\.[0-9]+)?(e[-+]?[0-9]+)?/N/g' | sort -u; }
+# the failures in a log: lines with FAIL / error: / Error / failed, and a test killed by a signal or stopped by a
+# sanitizer (sh prints only "Segmentation fault", "Aborted", ..: the line is named after the test, its "== " line)
+fails() {
+    awk '/^== / { t = substr($0, 4) }
+         /Segmentation fault|Aborted|Bus error|Illegal instruction|Floating point exception|ERROR: [A-Za-z]*Sanitizer|WARNING: ThreadSanitizer/ {
+             print "CRASHED: " t ": " $0; next }
+         { print }' "$1" |
+        grep -E "FAIL|error:|Error|\bfailed\b|^CRASHED: " | grep -vE "[[:space:]]ok$" |
+        sed -E 's/^[0-9T:.Z-]+ //; s/0x[0-9a-fA-F]+/0xN/g; s/[0-9]+(\.[0-9]+)?(e[-+]?[0-9]+)?/N/g' | sort -u
+}
 
 (cd "$here/fw" && CC="cc -DAMEN_SETUP=0" sh tests/run_tests.sh > "$out/amen.log" 2>&1) && echo "AMEN: the suite passed" || echo "AMEN: the suite reported failures"
 
