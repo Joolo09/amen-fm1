@@ -12,7 +12,7 @@ out=$here/build/amen-ui
 rm -rf "$out"; mkdir -p "$out/ppm" "$out/slot"
 cd "$here/fw"
 cc -O1 -w -Ifirmware/hal -Ifirmware/bsp/chip -Ifirmware/bsp/boards/fm1 -Ifirmware/src -Ibuild/gen -Itests \
-    "-DFELUCCA_VERSION=\"${1:-v0.2}\"" -o "$out/ui_render" tests/ui_render.c -lm
+    "-DFELUCCA_VERSION=\"${1:-v0.3}\"" -o "$out/ui_render" tests/ui_render.c -lm
 "$out/ui_render" "$out" "$out/slot" > "$out/run.log" 2>&1 || true
 cat "$out/run.log"
 grep -q " 0 lint findings" "$out/run.log" || { echo "AMEN UI: layout lint findings (build/amen-ui/report.txt):"; grep "^LINT\|^FIND" "$out/report.txt" | grep -v self-test | head -40; exit 1; }

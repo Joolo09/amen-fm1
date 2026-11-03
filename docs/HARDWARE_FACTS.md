@@ -48,4 +48,6 @@ layouts are not checked here: UNKNOWN for every one of them until read in its ow
 | Its USB-MIDI port name, and whether it answers the update identity query | answers it (AMEN 0.1 was installed over USB-MIDI by the site); the port name not reported | CONFIRMED (inferred from the install) |
 | AMEN OS 0.2 on it | black screen, then UBOOT; recovered by the owner | CONFIRMED (owner report) |
 | AMEN OS 0.3 on it | never run | NOT RUN |
-| AMEN 0.2 (the 80s look) on it | never run: built and rendered on a computer only | NOT RUN |
+| AMEN 0.2 (the 80s look) on it | not reported | UNKNOWN |
+| AMEN 0.3 (recorded drums, no USB audio) on it | never run: built and rendered on a computer only | NOT RUN |
+| What starts on the owner's PC when the FM-1 is plugged in | "the cloning software" (owner, 2026-11-03), on the USB audio function ("the speaker driver"); AMEN 0.3 has none | owner report |

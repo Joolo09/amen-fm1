@@ -16,7 +16,7 @@ $(B)/fe_shared.h: tools/gen_tables.py
 engines/jungle_data.h: tools/gen_breaks.py
 	python3 tools/gen_breaks.py
 
-$(B)/amen_host: host/amen_host.c engines/eng_jungle.c engines/eng_reese.c engines/jungle_data.h $(B)/fe_tables.h sdk/src/dsp.c
+$(B)/amen_host: host/amen_host.c engines/eng_jungle.c engines/eng_reese.c engines/jungle_data.h engines/jungle_drums.h $(B)/fe_tables.h sdk/src/dsp.c
 	$(CC) $(CFLAGS) -I$(B) -Isdk/src -Iengines -o $@ host/amen_host.c
 
 test: $(B)/amen_host
@@ -29,7 +29,7 @@ breaks: $(B)/amen_host
 	for n in 0 1 2 3 4 5 6 7; do $(B)/amen_host break $$n $(B)/break$$n.wav; done
 
 # AMEN OS on the desktop: the scripted session (screens as PPM, the audio as WAV, checks)
-$(B)/amen_sim: os/host/sim.c os/amen.h os/amen.c os/core.c os/ui.c os/font.h engines/eng_jungle.c engines/eng_reese.c engines/jungle_data.h $(B)/fe_tables.h
+$(B)/amen_sim: os/host/sim.c os/amen.h os/amen.c os/core.c os/ui.c os/font.h engines/eng_jungle.c engines/eng_reese.c engines/jungle_data.h engines/jungle_drums.h $(B)/fe_tables.h
 	$(CC) $(CFLAGS) -I$(B) -Isdk/src -Iengines -Ios -o $@ os/host/sim.c
 
 os/font.h: tools/gen_font.py

@@ -38,6 +38,13 @@
  *   s[3], s[4]  TONE's filter;  s[5] CRUSH's held sample << 8 | its counter;  s[6] the metal's low-pass
  *   s[7]   the choke gain, Q15 */
 #include "jungle_data.h"
+#ifndef JNG_DRUMS
+#define JNG_DRUMS 1                  /* 1: the hits are recordings of a real kit (jungle_drums.h, tools/gen_drums.py, CC0
+                                      * VCSL, 23 KB); 0: synthesised (the 8 KiB plugin, plugins/jungle.c) */
+#endif
+#if JNG_DRUMS
+#include "jungle_drums.h"
+#endif
 
 enum { JK = 1, JS = 2, JG = 4, JH = 8, JO = 16, JR = 32, JC = 64, JA = 128 };
 enum { JNG_REV_OFF, JNG_REV_ON, JNG_REV_R25, JNG_REV_R50 };
@@ -131,6 +138,53 @@ static uint32_t jng_tau_max(uint32_t mask, int32_t dec)
     return tau * dk >> 6;
 }
 
+#if JNG_DRUMS
+/* the length of drum d at DECAY dec in break time (44.1 kHz samples): the recording's own at DECAY 48 and up, shorter
+ * below (x (16 + dec) / 64) */
+static uint32_t jng_dlen(uint32_t d, int32_t dec)
+{
+    uint32_t n = ((uint32_t)JNG_DRUM[d].n << 16) / JNG_DRUM[d].r16, dk = (uint32_t)clamp(dec, 0, 127) + 16u;
+    return dk < 64u ? n * dk >> 6 : n;
+}
+/* drum d at break time t8 (Q8 samples at 44.1 kHz; slow: r16 x 3 / 4), its level x lv (Q15), faded out over the last
+ * 3/8 of its length L (DECAY; fg = 2^30 / that fade's length); 0 past it. Linear between the codes, so a slowed slice
+ * stays smooth */
+static int32_t jng_drum(uint32_t d, uint32_t t8, int32_t lv, uint32_t L, uint32_t fg, int slow)
+{
+    const jng_drum_t *k = &JNG_DRUM[d];
+    uint32_t r = slow ? (uint32_t)k->r16 * 3u >> 2 : k->r16, t = t8 >> 8, pos, i;
+    int32_t a, b, y;
+    if (t >= L)
+        return 0;
+    pos = t * r + (((t8 & 255u) * r) >> 8);           /* Q16 in the recording (t < 40000 x 4/3: no overflow) */
+    i = pos >> 16;
+    if (i + 1u >= k->n)
+        return 0;
+    a = JNG_ULAW[k->d[i]];
+    b = JNG_ULAW[k->d[i + 1u]];
+    y = a + (((b - a) * (int32_t)((pos & 0xFFFFu) >> 1)) >> 15);
+    if (t > L - (L * 3u >> 3))                         /* the fade: the last 3/8, (L - t) / fade in Q15 */
+        y = mulq15(y, (int32_t)((L - t) * fg >> 15));
+    return mulq15(y, mulq15(k->level, lv));
+}
+#endif
+
+#if JNG_DRUMS
+/* the longest of the drums of mask at DECAY dec (the crash: the ride slowed to 3/4, so 4/3 its length) */
+static uint32_t jng_hits_len(uint32_t mask, int32_t dec)
+{
+    uint32_t l = 0, x;
+    if ((mask & JK) && (x = jng_dlen(JD_KICK, dec)) > l) l = x;
+    if ((mask & JS) && (x = jng_dlen(JD_SNARE, dec)) > l) l = x;
+    if ((mask & JG) && (x = jng_dlen(JD_GHOST, dec)) > l) l = x;
+    if ((mask & JH) && (x = jng_dlen(JD_HAT, dec)) > l) l = x;
+    if ((mask & JO) && (x = jng_dlen(JD_OHAT, dec)) > l) l = x;
+    if ((mask & JR) && (x = jng_dlen(JD_RIDE, dec)) > l) l = x;
+    if ((mask & JC) && (x = jng_dlen(JD_RIDE, dec) * 4u / 3u) > l) l = x;
+    return l;
+}
+#endif
+
 static void jng_note_on(track_t *t, voice_t *v)
 {
     const int16_t *p = t->p;
@@ -155,11 +209,20 @@ static void jng_note_on(track_t *t, voice_t *v)
         off = 0;
     if (!(mask & 127u) && !tail)
         mask = 0;                                  /* nothing hits or rings: silence (done at once) */
-    tau = jng_tau_max(mask | tail, p[P_E3]);
+#if JNG_DRUMS
+    tau = jng_hits_len(mask & 127u, p[P_E3]);       /* forward: until its drums have rung out, the tails' too */
+    {
+        uint32_t tl = jng_hits_len(tail, p[P_E3]), o = off * JNG_SIXTEENTH;
+        if (tl > o && tl - o > tau)
+            tau = tl - o;
+    }
+#else
+    tau = jng_tau_max(mask | tail, p[P_E3]) * 5u;   /* forward: until the hits are down 43 dB */
+#endif
     if (rev)                                       /* reversed: the sixteenth played from its end to its hit */
         len = JNG_SIXTEENTH * ((uint32_t)clamp(p[P_E3], 0, 127) + 16u) >> 6;
     else
-        len = tau * 5u;                            /* forward: until the hits are down 43 dB */
+        len = tau;
     if (len > JNG_LEN_MAX)
         len = JNG_LEN_MAX;
     v->ph[0] = 0;
@@ -180,9 +243,13 @@ static void jng_note_on(track_t *t, voice_t *v)
 static void jng_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
+#if JNG_DRUMS
+    uint32_t dl[JD_N + 1], fg[JD_N + 1];            /* (JD_N: the crash) */
+#else
     jng_rates_t q;
+#endif
     tsvf_t flt;
-    uint32_t i, k, flags = v->ph[2], mask = flags & 255u, rev = flags & JNG_F_REV;
+    uint32_t i, flags = v->ph[2], mask = flags & 255u, rev = flags & JNG_F_REV;
     uint32_t tail = (flags >> JNG_TAIL_SHIFT) & 127u, off = ((flags >> JNG_OFF_SHIFT) & 3u) * JNG_SIXTEENTH;
     uint32_t all = (mask | tail) & 127u, sm = (mask & (JS | JG)) ? mask : tail;   /* the snare's own or a tail's */
     uint32_t len = (flags >> JNG_LEN_SHIFT) << 5, sp = JNG_SPD[clamp(p[P_E2], -12, 12) + 12];
@@ -192,19 +259,55 @@ static void jng_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
     int32_t hn = v->s[5] >> 8, hc = v->s[5] & 255, mlp = v->s[6], gain = v->s[7];
     int32_t n1 = v->s[1], n2 = v->s[2], ic1 = v->s[3], ic2 = v->s[4];
     int32_t vel = v->vel * 258, acc = (mask & JA) ? 32767 : 19660;
+#if !JNG_DRUMS
+    uint32_t k;
     int32_t sn = (sm & JS) ? 32767 : 9830;         /* a ghost snare: -10 dB */
+#endif
     sp = JNG_SPEED(sp);
     step = sp >> 4;
     if (!all)
         return;
     if (clamp(p[P_E6], 0, 2) == JNG_GATE && !v->gate)
         flags |= JNG_F_CHOKED;                      /* GATE: the note-off cuts the slice */
+#if JNG_DRUMS
+    {
+        uint32_t d;
+        for (d = 0; d <= JD_N; d++) {               /* each drum's length at this DECAY, its fade's reciprocal */
+            dl[d] = d < JD_N ? jng_dlen(d, p[P_E3]) : jng_dlen(JD_RIDE, p[P_E3]) * 4u / 3u;
+            fg[d] = (1u << 30) / ((dl[d] * 3u >> 3) | 1u);
+        }
+    }
+#else
     jng_rates(&q, p[P_E3], !(sm & JS));
+#endif
     if (tone < 127)
         tsvf_coef(&flt, tone << 8, 0);
     for (i = 0; i < n; i++) {
-        uint32_t tt = tq >> 8, te = tt, to;
-        int32_t y = 0, nz, d1, d2;
+        uint32_t tt = tq >> 8;
+        int32_t y = 0;
+#if JNG_DRUMS
+        {   /* the kit: each hit its recording at its own time (a tail's moved on by its distance) */
+            uint32_t te8 = rev ? (tq < (len << 8) ? (len << 8) - tq : 0u) : tq, to8 = te8 + (off << 8);
+#define JNG_T8(bits) ((mask & (bits)) ? te8 : to8)
+            if (all & JK)
+                y += jng_drum(JD_KICK, JNG_T8(JK), 32767, dl[JD_KICK], fg[JD_KICK], 0);
+            if (all & (JS | JG)) {
+                uint32_t d = (sm & JS) ? JD_SNARE : JD_GHOST;
+                y += jng_drum(d, JNG_T8(JS | JG), 32767, dl[d], fg[d], 0);
+            }
+            if (all & JH)
+                y += jng_drum(JD_HAT, JNG_T8(JH), acc, dl[JD_HAT], fg[JD_HAT], 0);
+            if (all & JO)
+                y += jng_drum(JD_OHAT, JNG_T8(JO), acc, dl[JD_OHAT], fg[JD_OHAT], 0);
+            if (all & JR)
+                y += jng_drum(JD_RIDE, JNG_T8(JR), acc, dl[JD_RIDE], fg[JD_RIDE], 0);
+            if (all & JC)                            /* the crash: the ride slower, louder */
+                y += jng_drum(JD_RIDE, JNG_T8(JC), 32767, dl[JD_N], fg[JD_N], 1);
+#undef JNG_T8
+        }
+#else
+        uint32_t te = tt, to;
+        int32_t nz, d1, d2;
         if (rev)
             te = tt < len ? len - tt : 0;
         to = te + off;                               /* the tails' time */
@@ -247,6 +350,7 @@ static void jng_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
         if (all & JO)                                /* open hat */
             y += mulq15(mulq15(d2, 13000), mulq15(jng_env(&q, C_OHAT, JNG_T(JO)), acc));
 #undef JNG_T
+#endif
         y = softclip(y * drive >> 12);               /* the drive (CRUSH) and a ceiling */
         if (crush) {                                 /* fewer samples, fewer bits */
             if (--hc <= 0) {

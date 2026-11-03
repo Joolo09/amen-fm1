@@ -66,3 +66,18 @@ Every screen drawn in its own style, not Felucca's:
 - `firmware/src/ui_draw.c`: the header's edited mark 1 px further from the slot letter (the wider A).
 - `tests/ui_render.c`: the splash's lines (the logo is art). `../tools/amen_ui_check.sh` (CI): every AMEN screen in
   every palette through Felucca's renderer: 0 layout findings, GREY / MONO gray, alignment as Felucca's (532 offsets).
+
+## Real drums, no USB audio (AMEN 0.3)
+
+- `../engines/eng_jungle.c` (JNG_DRUMS 1): the breaks play on recordings of a real kit instead of synthesised hits:
+  `../engines/jungle_drums.h` from `../tools/gen_drums.py` (VCSL, CC0 1.0: a kick, a modern snare full and soft for
+  the ghosts, a hi-hat closed and loose, a cymbal with a stick as the ride, slower and louder as the crash), 8-bit
+  mu-law at their own rates (11 / 16 / 22 kHz), 24 KB. Read at any time and speed (linear between the codes), so
+  PITCH, REV, the tails, CHOKE / GATE, CRUSH and TONE work as before; DECAY shortens a hit below 48 (fading its last
+  3/8), from 48 up it is the recording's own length. The breaks' patterns are still tools/gen_breaks.py's: no
+  breakbeat recording is used. The FM-1 plugin (`../plugins/jungle.c`) keeps the synthesised hits (JNG_DRUMS 0: the
+  kit does not fit its 8 KiB slot).
+- `../tools/build_amen.sh`: built with FELUCCA_UAC=0: no USB audio interface. Plugged in, the FM-1 shows USB-MIDI
+  (the installer, MIDI) and the serial console only, so a computer does not see a new sound device and start the
+  apps it starts for one. A layout of Felucca's own (its suite tests the descriptors: CDC 1, UAC 0); the device's
+  bcdDevice changes with it, so a computer enumerates it afresh. MENU > USB LEVEL stays and does nothing.
