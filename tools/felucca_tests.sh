@@ -24,6 +24,15 @@ fails() {
         sed -E "s/^[0-9T:.Z-]+ //; s/‘|’/'/g; s/0x[0-9a-fA-F]+/0xN/g; s/\b[0-9a-f]{16}\b/H/g; s/[0-9]+(\.[0-9]+)?(e[-+]?[0-9]+)?/N/g" | sort -u
 }
 
+# the suite's update-path tests (ota_test, ldr_test), target_budget.py and the package checks (web, installer) run on
+# build/felucca.fwsc, ./build.sh's name; a release build (tools/build_amen.sh, Felucca's below) names it
+# felucca-X.Y.fwsc. The newest package of a tree, under that name too, on both sides
+fwsc() {
+    p=$(ls -t "$1"/build/felucca*.fwsc 2>/dev/null | head -n 1)
+    [ -z "$p" ] || [ "$p" = "$1/build/felucca.fwsc" ] || cp "$p" "$1/build/felucca.fwsc"
+}
+
+fwsc "$here/fw"
 printf '#!/bin/sh\nexec cc -DAMEN_SETUP=0 "$@"\n' > "$out/amen-cc"
 chmod +x "$out/amen-cc"
 (cd "$here/fw" && CC="$out/amen-cc" sh tests/run_tests.sh > "$out/amen.log" 2>&1) && echo "AMEN: the suite passed" || echo "AMEN: the suite reported failures"
@@ -32,7 +41,7 @@ ref=$out/felucca-1.9.0
 if [ ! -d "$ref" ]; then
     curl -fsSL --retry 3 https://github.com/hugelton/Felucca/releases/download/v1.9.0/felucca-1.9.0-source.tar.gz | tar -xz -C "$out"
 fi
-(cd "$ref" && python3 tools/build.py --release 1.9.0 > "$out/felucca-build.log" 2>&1 && sh tests/run_tests.sh > "$out/felucca.log" 2>&1) \
+(cd "$ref" && python3 tools/build.py --release 1.9.0 > "$out/felucca-build.log" 2>&1 && fwsc "$ref" && sh tests/run_tests.sh > "$out/felucca.log" 2>&1) \
     && echo "Felucca 1.9.0: the suite passed" || echo "Felucca 1.9.0: the suite reported failures"
 
 fails "$out/amen.log" > "$out/amen.fails"
