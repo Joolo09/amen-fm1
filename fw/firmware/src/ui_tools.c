@@ -561,9 +561,7 @@ static const char *tl_do(track_t *t, uint32_t p, uint32_t l)
         return 0;
     if (amen_jungle(t) && (p == TL_RANDOM || p == TL_COOK || p == TL_BEAT)) {   /* AMEN: the edit makers (ui_amen.c) */
         tl_undo_take(t);
-        if (p == TL_RANDOM) { amen_make_jungle(t, len); msg = "JUNGLE EDIT"; }
-        else if (p == TL_COOK) { amen_make_brkcore(t, len); msg = "BREAKCORE!"; }
-        else { amen_make_roller(t, len); msg = "DNB ROLLER"; }
+        msg = amen_make(t, p, len);                   /* the edit and its effects (locks) */
         tl_unlock(t, was, len);
         return msg;
     }

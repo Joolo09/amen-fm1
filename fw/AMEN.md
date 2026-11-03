@@ -81,3 +81,16 @@ Every screen drawn in its own style, not Felucca's:
   (the installer, MIDI) and the serial console only, so a computer does not see a new sound device and start the
   apps it starts for one. A layout of Felucca's own (its suite tests the descriptors: CDC 1, UAC 0); the device's
   bcdDevice changes with it, so a computer enumerates it afresh. MENU > USB LEVEL stays and does nothing.
+
+## The edit makers with effects (AMEN 0.3)
+
+`firmware/src/ui_amen_tools.c`: SEQ TOOLS on a JUNGLE track write a whole break edit at a key press, no steps by hand:
+C JUNGLE (each press one of three: EDIT, the classic edits; RUSH, a snare rush into the next bar; HALF, half-time),
+D BRKCORE, E ROLLER (drum & bass two-step). Each also writes effects on its steps as parameter locks (motion.c
+MOTION_LOCK, the value on that step only): a reversed swell into the next bar, a pitched-up roll, a riser or a tape stop
+over the bar's last four steps, a dropped hit, a chopped stab (DCAY), a burst of grit (CRSH, BRKCORE), the filter
+dipping over the third beat (TONE), a dub throw (the DELAY or REVERB send up on the fourth beat's snare). How much:
+ROLLER a little, JUNGLE more, BRKCORE most. At most 24 locks an edit (the project has 128), none when they are full;
+the track's automation stays; one undo (SAVE held) puts the steps and the locks back. `firmware/src/ui_tools.c` calls
+`amen_make`; `tests/ui_test.c` test_amen_tools checks it (variations, locks on NOTE steps in range, the cap, undo,
+a full project).

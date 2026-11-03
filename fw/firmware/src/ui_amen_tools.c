@@ -38,8 +38,41 @@ static void amen_put(track_t *t, uint32_t i, uint32_t slice, uint32_t ratch, uin
     step_set_ratchet(st, ratch ? ratch : 1u);
     st->probability = chance >= 100u ? 0u : (uint8_t)chance;
 }
-/* JUNGLE: the break as it plays, then the classic edits: the first half-bar again, the snare's stutter, a roll into
- * the next bar, a ghost for a hat */
+/* JUNGLE, one of three each press: CLASSIC (below), RUSH (the bar's second half a snare rush into the next bar:
+ * snares closing up, rolls x2 then x3), HALF (half-time: the kick on 1, the snare on the third beat, ghosts and hats
+ * between, a roll at the end) */
+static void amen_make_rush(track_t *t, uint32_t len)
+{
+    uint32_t i;
+    for (i = 0; i < len; i++) {
+        uint32_t b = i % 16u, brk = (JNG_BRK[clamp(t->p[P_E0], 0, JNG_NBRK - 1)][i % JNG_STEPS] & JS) != 0u;
+        if (b < 8u)
+            amen_put(t, i, i % JNG_STEPS, 1, 100, brk);
+        else if (b == 8u || b == 11u || b == 13u || b >= 14u)
+            amen_put(t, i, amen_pick(t, JS, b), b >= 14u ? 2u + (b == 15u) : 1u, 100, b != 13u);
+        else
+            amen_put(t, i, amen_pick(t, JG | JK, b), 1, 80, 0);
+    }
+}
+static void amen_make_half(track_t *t, uint32_t len)
+{
+    uint32_t i;
+    for (i = 0; i < len; i++) {
+        uint32_t b = i % 16u;
+        if (b == 0u || (b == 6u && amen_rnd(2)))
+            amen_put(t, i, amen_pick(t, JK, b), 1, 100, 1);
+        else if (b == 8u)
+            amen_put(t, i, amen_pick(t, JS, b), 1, 100, 1);
+        else if (b == 15u)
+            amen_put(t, i, amen_pick(t, JS | JG, b), 2u + amen_rnd(2), 100, 0);
+        else if (b & 1u)
+            amen_put(t, i, amen_pick(t, JG, b), 1, 45, 0);
+        else
+            amen_put(t, i, amen_pick(t, JH | JR | JO, b), 1, 90, 0);
+    }
+}
+/* JUNGLE CLASSIC: the break as it plays, then the classic edits: the first half-bar again, the snare's stutter, a roll
+ * into the next bar, a ghost for a hat */
 static void amen_make_jungle(track_t *t, uint32_t len)
 {
     uint32_t i;
@@ -101,6 +134,86 @@ static void amen_make_brkcore(track_t *t, uint32_t len)
         }
     }
 }
+/* ------------------------------------------------------------------------------------------------- the FX ---
+ * Each maker also writes effects on its steps, as parameter locks (MOTION_LOCK: on that step only; motion.c): REV
+ * (a reversed swell into the next hit), PTCH (a pitched-up roll, a riser over the bar's last four, a dropped kick, a
+ * tape stop: the pitch falling over the last four), DCAY (a chopped stab), CRSH (a burst of grit), TONE (the filter
+ * dipping over a half-bar), the DELAY or REVERB send (a dub throw on the fourth beat's snare). heat: how much (ROLLER 1, JUNGLE 2, BRKCORE 4). Every lock this tool wrote before on these
+ * steps goes first; at most AMEN_FX_MAX of the project's MOTION_MAX are taken, and none when they are full. One undo
+ * puts the steps and the locks back (tl_undo_take keeps the track's motion). */
+#define AMEN_FX_MAX 24u
+static uint32_t amen_fx_n;
+static void amen_lock(track_t *t, uint32_t i, uint32_t id, int32_t v, uint32_t len)
+{
+    if (i < len && amen_fx_n < AMEN_FX_MAX && t->step[i].time == ST_NOTE &&
+        !motion_set_lock(t, i, id, (int16_t)v))
+        amen_fx_n++;
+}
+static int32_t amen_pitch(const track_t *t, int32_t d) { return clamp(t->p[P_E2] + d, -12, 12); }
+static void amen_fx(track_t *t, uint32_t len, uint32_t heat)
+{
+    uint32_t bar, k, i;
+    amen_fx_n = 0;
+    for (i = 0; i < len; i++)                          /* this track's locks on these steps go (its automation stays) */
+        (void)motion_clear_locks(t, i);
+    for (bar = 0; bar < len; bar += 16u) {
+        uint32_t last = bar + 15u < len ? bar + 15u : len - 1u, r = amen_rnd(8);
+        if (amen_rnd(4) < heat)                        /* a reversed swell on the bar's last step, into the next 1 */
+            amen_lock(t, last, P_E5, JNG_REV_ON, len);
+        if (r < heat) {                                /* the bar's end: a riser or a tape stop */
+            int up = amen_rnd(2);
+            for (k = 0; k < 4u && last >= 3u; k++)
+                amen_lock(t, last - 3u + k, P_E2, amen_pitch(t, up ? 2 + 3 * (int32_t)k : -3 * (int32_t)(k + 1u)), len);
+        }
+        for (k = 0; k < 16u && bar + k < len; k++) {
+            const step_t *st = &t->step[bar + k];
+            uint32_t x = amen_rnd(32);
+            if (st->time != ST_NOTE)
+                continue;
+            if (step_ratchet(st) > 1u && x < 6u + 4u * heat)          /* a roll pitched up */
+                amen_lock(t, bar + k, P_E2, amen_pitch(t, amen_rnd(2) ? 5 : 7), len);
+            else if (x < heat)                                        /* a dropped hit */
+                amen_lock(t, bar + k, P_E2, amen_pitch(t, amen_rnd(2) ? -5 : -12), len);
+            else if (x < 2u * heat)                                   /* a chopped stab */
+                amen_lock(t, bar + k, P_E3, 8 + (int32_t)amen_rnd(12), len);
+            else if (x < 2u * heat + (heat > 2u ? heat : 0u))         /* a burst of grit (BRKCORE) */
+                amen_lock(t, bar + k, P_E4, 90 + (int32_t)amen_rnd(30), len);
+        }
+        if (amen_rnd(4) < heat && bar + 12u < len) {   /* a dub throw: the snare on the fourth beat into the delay or the
+                                                        * reverb (its send up for that hit, the echo rings on) */
+            const step_t *st = &t->step[bar + 12u];
+            if (st->time == ST_NOTE)
+                amen_lock(t, bar + 12u, amen_rnd(2) ? P_DLY : P_REV, 70 + (int32_t)amen_rnd(40), len);
+        }
+        if (amen_rnd(6) < heat && bar + 11u < len)     /* the filter dipping over the third beat */
+            for (k = 8; k < 12u; k++)
+                amen_lock(t, bar + k, P_E7, 40 + 15 * (int32_t)(k - 8u), len);
+    }
+}
+/* the maker of tool p on a JUNGLE track, its effects; what it says (the message) */
+static const char *amen_make(track_t *t, uint32_t p, uint32_t len)
+{
+    static const char *const JNG[3] = {"JUNGLE EDIT", "JUNGLE RUSH", "JUNGLE HALF"};
+    const char *msg;
+    uint32_t v = amen_rnd(3);
+    if (p == TL_RANDOM) {
+        if (v == 1u) amen_make_rush(t, len);
+        else if (v == 2u) amen_make_half(t, len);
+        else amen_make_jungle(t, len);
+        amen_fx(t, len, 2);
+        msg = JNG[v];
+    } else if (p == TL_COOK) {
+        amen_make_brkcore(t, len);
+        amen_fx(t, len, 4);
+        msg = "BREAKCORE!";
+    } else {
+        amen_make_roller(t, len);
+        amen_fx(t, len, 1);
+        msg = "DNB ROLLER";
+    }
+    return msg;
+}
+
 /* the tool's name on a JUNGLE track (0: Felucca's) */
 static const char *amen_tool_name(const track_t *t, uint32_t p)
 {

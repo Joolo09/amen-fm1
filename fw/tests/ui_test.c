@@ -10034,6 +10034,72 @@ static int test_ux18(void)
     return bad;
 }
 
+
+/* AMEN: SEQ TOOLS on a JUNGLE track make break edits with effects (ui_amen_tools.c amen_make): every press writes its
+ * steps and locks (REV, PTCH, DCAY, CRSH, TONE, the DLY / REV sends) on NOTE steps only, at most AMEN_FX_MAX, in each
+ * parameter's range, the track's automation kept; the three JUNGLE variations come; one undo puts steps and locks
+ * back; a full project of locks makes edits without effects, never an overflow */
+static int test_amen_tools(void)
+{
+    track_t *t = &trk[2];
+    uint32_t e, k, i, bad = 0, ok_range = 1, ok_note = 1, ok_max = 1, fx_seen = 0, made = 0, vars = 0;
+    for (e = 0; e < NENG_BUILTIN && ENGINES[e] != &ENG_JUNGLE; e++)
+        ;
+    set_engine_of(t, e);
+    t->p[P_SLEN] = 32;
+    motion_clear(t);
+    (void)motion_set_event(t, 40, P_LEVEL, 30);          /* automation past LEN and on a step: it stays */
+    for (k = 0; k < 90u; k++) {
+        uint32_t p = k % 3u == 0u ? TL_RANDOM : k % 3u == 1u ? TL_COOK : TL_BEAT, n, locks;
+        const char *msg = tl_do(t, p, 0);
+        made += msg != 0;
+        if (msg && !strcmp(msg, "JUNGLE RUSH")) vars |= 1u;
+        if (msg && !strcmp(msg, "JUNGLE HALF")) vars |= 2u;
+        if (msg && !strcmp(msg, "JUNGLE EDIT")) vars |= 4u;
+        locks = motion_lock_count(t);
+        ok_max &= locks <= AMEN_FX_MAX;
+        fx_seen += locks;
+        for (i = 0, n = 0; i < motion.count; i++) {
+            const motion_event_t *ev = &motion.event[i];
+            const param_desc_t *d = param_desc_of(e, MOTION_ID(ev));
+            if ((ev->place >> 6) != trk_index(t) || !(ev->param & MOTION_LOCK))
+                continue;
+            n++;
+            ok_note &= t->step[ev->place & 63u].time == ST_NOTE;
+            ok_range &= ev->value >= d->min && ev->value <= d->max;
+        }
+    }
+    bad += check("AMEN SEQ TOOLS: JUNGLE / BRKCORE / ROLLER make an edit every press", made == 90u);
+    bad += check("AMEN SEQ TOOLS: the three JUNGLE variations (EDIT, RUSH, HALF)", vars == 7u);
+    bad += check("AMEN SEQ TOOLS: effects as locks, on NOTE steps, in range, at most AMEN_FX_MAX",
+                 fx_seen > 0u && ok_note && ok_range && ok_max);
+    {
+        int16_t v = 0;
+        uint32_t before = motion_lock_count(t), after;
+        step_t was[NSTEP];
+        memcpy(was, t->step, sizeof was);
+        (void)tl_do(t, TL_COOK, 0);
+        undo_swap();
+        after = motion_lock_count(t);
+        bad += check("AMEN SEQ TOOLS: one undo puts the steps and their locks back",
+                     after == before && !memcmp(was, t->step, sizeof was));
+        bad += check("AMEN SEQ TOOLS: the track's automation stays", motion_count(t) > motion_lock_count(t) &&
+                     !motion_lock_get(t, 40, P_LEVEL, &v));
+    }
+    {   /* the project's MOTION_MAX taken by another track: edits still come, no effects, nothing overflows */
+        track_t *o = &trk[1];
+        motion_clear(t);
+        for (i = 0; motion.count < MOTION_MAX; i++)
+            (void)motion_set_lock(o, i % NSTEP, P_E0 + i / NSTEP, 1);
+        k = motion_lock_count(t);
+        bad += check("AMEN SEQ TOOLS: the locks full: an edit, no effects, no overflow",
+                     tl_do(t, TL_COOK, 0) != 0 && motion_lock_count(t) == k && motion.count <= MOTION_MAX);
+        motion_clear(o);
+        motion_clear(t);
+    }
+    return (int)bad;
+}
+
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -10123,6 +10189,7 @@ int main(void)
     bad += test_help();
     bad += test_no_flash();
     bad += test_ux18();
+    bad += test_amen_tools();
 #if FELUCCA_FM4
     bad += test_fm_charts();                        /* (DIGITAL's charts: built with FELUCCA_FM4=1 only) */
 #else
